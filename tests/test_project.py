@@ -1,11 +1,10 @@
 import pytest
 import json
 
-from offgridoptimizer import Project, Grid
+from offgridoptimizer import Project, Grid, load_and_validate
 
 def test_project():
-    with open('../configs/logan/config.json') as fp:
-        config = json.load(fp)
+    config = load_and_validate('../configs/logan/config.json')
 
     grid_config = config['grid']
     budget = config['budget']

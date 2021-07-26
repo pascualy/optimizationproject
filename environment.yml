@@ -1,0 +1,11 @@
+name: offgridoptimizer
+channels:
+  - conda-forge
+dependencies:
+  - ipysheet=0.4.4
+  - pscript
+  - pandas
+  - bqplot
+  - pip
+  - pip:
+      - -e .

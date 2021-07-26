@@ -1,3 +1,4 @@
 .ipynb_checkpoints
 .pytest_cache
 final_project.egg-info
+offgridoptimizer/__pycache__/

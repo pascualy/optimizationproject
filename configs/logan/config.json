@@ -1,34 +1,46 @@
 {
-  "demand": {
-    "monthly_electricity_demand": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    "monthly_heat_demand": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-  },
-  "budget": {
-    "initial": 200000,
-    "monthly": 500
-  },
-  "grid": {
-      "grid_cost_kwh": 0.5,
-      "grid_cost_env": 1
-  },
-  "products": [
+    "demand": {
+        "monthly_electricity_demand": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        "monthly_heat_demand": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    },
+    "budget": {
+        "initial": 200000,
+        "monthly": 500
+    },
+    "grid": {
+        "grid_cost_kwh": 1,
+        "grid_cost_env": 1
+    },
+    "products": [
     {
       "name":  "smallsolar",
       "utility_type":  "electricity",
       "energy_type": "solar",
-      "opening_cost":  10000,
-      "incremental_cost": 1000,
+      "opening_cost":  100,
+      "incremental_cost": 10,
       "maintenance_cost": 0,
-      "monthly_capacity": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+      "monthly_capacity": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      "amoritization": 30
     },
     {
       "name": "smallwind",
-      "ut": "electricity",
-      "et": "wind",
-      "oc": 15000,
-      "ic": 100,
-      "mc": 0,
-      "ca": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+      "utility_type": "electricity",
+      "energy_type": "wind",
+      "opening_cost": 150,
+      "incremental_cost": 100,
+      "maintenance_cost": 0,
+      "monthly_capacity": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      "amoritization": 30
+    },
+    {
+      "name": "smallgeothermal",
+      "utility_type": "heatt",
+      "energy_type": "geothermal",
+      "opening_cost": 150,
+      "incremental_cost": 100,
+      "maintenance_cost": 0,
+      "monthly_capacity": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      "amoritization": 30
     }
   ]
 }

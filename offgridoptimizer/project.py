@@ -56,7 +56,9 @@ class Project:
                    product.ic * product.y if not concretize else product.y.x for product in self.products)
 
     def operational_costs(self, concretize=False):
-        return sum(product.mc * product.y if not concretize else product.y.x for product in self.products)
+        return sum(product.mc * product.y if not concretize else product.y.x for product in self.products) + \
+                self.grid.total_grid_cost(concretize=concretize)
+
 
     ####################
     # Project Capacity #
@@ -109,7 +111,8 @@ class Project:
 
     def print_results(self):
         headers = ['Product Name', 'Quantity']
-        selected_products = tabulate([(p.name, p.y.x) for p in self.products], headers=headers)
+        selected_products = tabulate([(p.name, p.y.x) for p in self.products] +
+                                     [("grid", sum(x.x for x in self.grid.monthly_usage.values()))], headers=headers)
         print(selected_products)
 
         print('\n\n')
