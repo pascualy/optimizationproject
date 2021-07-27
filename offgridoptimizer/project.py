@@ -124,13 +124,20 @@ class Project:
         print('\n\n')
 
         cost_headers = ["Cost", "Dollars ($)"]
-        costs = [("Total Opening Cost", self.total_opening_cost(concretize=True)),
-                 ("Total Maintenance Cost", self.total_maintenance_cost(concretize=True)),
-                 ("Total Incremental Cost", self.total_incremental_cost(concretize=True)),
-                 ("Total Environmental Cost", self.total_environmental_cost(concretize=True)),
-                 ("Total Grid Cost", self.grid.total_grid_cost(concretize=True))]
+        costs = self.costs()
         final_costs = tabulate(costs, headers=cost_headers)
         print(final_costs)
+
+    def costs(self):
+        return (("Total Opening Cost", self.total_opening_cost(concretize=True)),
+         ("Total Maintenance Cost", self.total_maintenance_cost(concretize=True)),
+         ("Total Incremental Cost", self.total_incremental_cost(concretize=True)),
+         ("Total Environmental Cost", self.total_environmental_cost(concretize=True)),
+         ("Total Grid Cost", self.grid.total_grid_cost(concretize=True)))
+
+    def selected_products(self):
+        return [(p.name, p.y.x) for p in self.products] + \
+        [("grid", sum(x.x for x in self.grid.monthly_usage.values()))]
 
     @classmethod
     def project_from_config_path(cls, config_path):

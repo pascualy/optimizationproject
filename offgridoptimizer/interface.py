@@ -61,6 +61,11 @@ class OffGridOptimizer:
             justify_content='space-between'
         )
 
+        self.add_product_row_button = widgets.Button(description='Add Row')
+        out = widgets.Output()
+
+        self.add_product_row_button.on_click(self.add_row)
+
         self.items = [
             HTML("<h2>Off-Grid Optimizer</h2>", layout=Layout(height='auto')),
             self.btn_default_config,
@@ -70,17 +75,58 @@ class OffGridOptimizer:
             HTML("<h2>Budget</h2>", layout=Layout(height='auto')),
             self.budget_sheet,
             HTML("<h2>Products</h2>", layout=Layout(height='auto')),
-            self.products_sheet,
+            widgets.VBox([self.add_product_row_button, self.products_sheet]),
             self.btn_optimize
         ]
 
-        self.interface = Box(self.items, layout=Layout(
+        self.input = Box(self.items, layout=Layout(
             display='flex',
             flex_flow='column',
             border='solid 2px',
             align_items='stretch',
             width='100%'
         ))
+
+        self.cost_sheet = sheet(rows=6, columns=2)
+        with hold_cells():
+            self.cost_header = column(0, ["Total Opening Cost", "Total Maintenance Cost",
+                       "Total Incremental Cost", "Total Environmental Cost",
+                       "Total Grid Cost"], row_start=1)
+            self.cost_values = column(1, ["Dollar ($)", "", "", "", "", ""])
+
+        self.sproducts_sheet = sheet(rows=1, columns=2)
+        with hold_cells():
+            self.sproducts_sheet_headers = row(0, ['Product Name', 'Quantity'])
+
+        self.sproducts = []
+
+        self.output_items = [
+            HTML("<h2>Results</h2>", layout=Layout(height='auto')),
+            self.cost_sheet,
+            self.sproducts_sheet
+        ]
+
+        self.output = Box(self.output_items, layout=Layout(
+            display='flex',
+            flex_flow='column',
+            border='solid 2px',
+            align_items='stretch',
+            width='100%'
+        ))
+
+        self.interface_items = [
+            self.input,
+            self.output
+        ]
+
+        self.interface = Box(self.interface_items, layout=Layout(
+            display='flex',
+            flex_flow='column',
+            border='solid 2px',
+            align_items='stretch',
+            width='100%'
+        ))
+
 
         self.project = None
 
@@ -138,5 +184,17 @@ class OffGridOptimizer:
         self.project = Project.project_from_config(config)
         self.project.optimize()
 
+        self.cost_values.value = ["Dollar ($)"] + [v for _, v in self.project.costs()]
+
+        sproducts = self.project.selected_products()
+        self.sproducts_sheet.rows = 1
+        self.sproducts_sheet.rows = 1 + len(sproducts)
+        self.set_sheet(self.sproducts_sheet)
+        for idx, sproduct in enumerate(sproducts):
+            row(idx + 1, sproduct)
+
     def set_sheet(self, current_sheet):
         easy._last_sheet = current_sheet
+
+    def add_row(self, _):
+        self.products_sheet.rows += 1
