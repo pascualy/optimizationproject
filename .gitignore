@@ -2,3 +2,6 @@
 .pytest_cache
 final_project.egg-info
 offgridoptimizer/__pycache__/
+.ipython
+.jupyter-server-log.txt
+.local/

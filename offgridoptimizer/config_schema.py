@@ -53,7 +53,7 @@ schema = {
         "product": {
             "type": "object",
             "required": ["name", "utility_type", "energy_type", "opening_cost", "incremental_cost",
-                         "maintenance_cost", "monthly_capacity", "amoritization"],
+                         "maintenance_cost", "monthly_capacity", "amortization"],
             "properties": {
                 "name": {
                     "type": "string"
@@ -83,7 +83,7 @@ schema = {
                         "type": "number"
                     }
                 },
-                "amoritization": {
+                "amortization": {
                     "type": "number"
                 },
 
@@ -92,14 +92,17 @@ schema = {
     }
 }
 
+
 class ConfigError(Exception):
     pass
+
 
 def load_and_validate(config_path):
     with open(config_path) as fp:
         config = json.load(fp)
 
     return validate_config(config)
+
 
 def validate_config(config):
     error_string = None
@@ -112,7 +115,5 @@ def validate_config(config):
         print('Failed to parse configuration file:')
         print(error_string)
         sys.exit(1)
-
-
 
     return config

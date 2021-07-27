@@ -20,7 +20,7 @@
       "incremental_cost": 10,
       "maintenance_cost": 0,
       "monthly_capacity": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-      "amoritization": 30
+      "amortization": 30
     },
     {
       "name": "smallwind",
@@ -30,17 +30,17 @@
       "incremental_cost": 100,
       "maintenance_cost": 0,
       "monthly_capacity": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-      "amoritization": 30
+      "amortization": 30
     },
     {
       "name": "smallgeothermal",
-      "utility_type": "heatt",
+      "utility_type": "heat",
       "energy_type": "geothermal",
       "opening_cost": 150,
       "incremental_cost": 100,
       "maintenance_cost": 0,
       "monthly_capacity": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-      "amoritization": 30
+      "amortization": 30
     }
   ]
 }

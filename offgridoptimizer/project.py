@@ -1,11 +1,17 @@
+import json
+
 from typing import List
 from . import Product, Grid
 from offgridoptimizer.constraints import DemandConstraint, ProductConstraint, BudgetConstraint
+from offgridoptimizer.config_schema import load_and_validate, validate_config
 
 from tabulate import tabulate
 
 import gurobipy as gp
 
+GP_ENV = gp.Env(empty=True)
+GP_ENV.setParam('LogToConsole', 0)
+GP_ENV.start()
 
 MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
@@ -16,8 +22,8 @@ def list2dict(l):
 
 class Project:
     def __init__(self, product_list, grid_cost_kwh, grid_cost_env, initial_budget, monthly_budget, monthly_electricity_demand, monthly_heat_demand):
-        self.model = gp.Model('Project')
 
+        self.model = gp.Model('Project', env=GP_ENV)
         self.grid = Grid(grid_cost_kwh, grid_cost_env, model=self.model)
         self.products = Product.create_products(product_list, model=self.model)
         self.product_constraint = ProductConstraint(self)
@@ -125,3 +131,25 @@ class Project:
                  ("Total Grid Cost", self.grid.total_grid_cost(concretize=True))]
         final_costs = tabulate(costs, headers=cost_headers)
         print(final_costs)
+
+    @classmethod
+    def project_from_config_path(cls, config_path):
+        config = load_and_validate(config_path)
+
+        return Project.project_from_config(config, validate=False)
+
+    @classmethod
+    def project_from_config(cls, config, validate=True):
+        if validate:
+            validate_config(config)
+
+        grid_config = config['grid']
+        budget = config['budget']
+        demand = config['demand']
+        return Project(product_list=config['products'],
+                       grid_cost_kwh=grid_config['grid_cost_kwh'],
+                       grid_cost_env=grid_config['grid_cost_env'],
+                       initial_budget=budget['initial'],
+                       monthly_budget=budget['monthly'],
+                       monthly_electricity_demand=demand['monthly_electricity_demand'],
+                       monthly_heat_demand=demand['monthly_heat_demand'])

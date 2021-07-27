@@ -1,15 +1,13 @@
 from offgridoptimizer import Project, Product
 
+import copy
 import ipysheet
 from ipysheet import sheet, cell, hold_cells, row, column, easy
 import ipywidgets as widgets
-import datetime
+from datetime import date
 
 from ipywidgets import Layout, Button, Box, FloatText, Textarea, Dropdown, Label, IntSlider
 from ipywidgets import HTML, Layout, Dropdown, Output, Textarea, VBox, Label
-
-
-# def product_config_to_sheet(products, sheets):
 
 
 class OffGridOptimizer:
@@ -32,12 +30,11 @@ class OffGridOptimizer:
         # Demand Sheet and Cells
         self.demand_sheet = sheet(rows=3, columns=13)
         with hold_cells():
-            mydate = datetime.datetime.now()
             self.demand_types = column(0, ['', 'monthly_electricity_demand', 'monthly_heat_demand'])
-            month_strs = [datetime.date(1900, month, month).strftime('%B') for month in range(1, 13)]
+            month_strs = [date(1900, month, month).strftime('%B') for month in range(1, 13)]
             self.demand_header = row(0, month_strs, column_start=1)
-            self.demand_elec = row(1, ['' for month in range(1, 13)], column_start=1)
-            self.demand_heat = row(2, ['' for month in range(1, 13)], column_start=1)
+            self.demand_elec = row(1, ['' for _ in range(12)], column_start=1)
+            self.demand_heat = row(2, ['' for _ in range(12)], column_start=1)
 
         self.grid_sheet = sheet(rows=3, columns=2)
 
@@ -77,7 +74,7 @@ class OffGridOptimizer:
             self.btn_optimize
         ]
 
-        self.form = Box(self.items, layout=Layout(
+        self.interface = Box(self.items, layout=Layout(
             display='flex',
             flex_flow='column',
             border='solid 2px',
@@ -88,7 +85,6 @@ class OffGridOptimizer:
         self.project = None
 
     def load_sheets(self, btn):
-        # this loading process can definitely be improved....
         self.project = Project.project_from_config_path(self.default_config_path)
         project = self.project
 
@@ -103,8 +99,7 @@ class OffGridOptimizer:
 
         self.set_sheet(self.budget_sheet)
         with hold_cells():
-            self.budget_data.value[1] = project.initial_budget
-            self.budget_data.value[2] = project.monthly_budget
+            self.budget_data.value = ['Dollars ($)', project.initial_budget, project.monthly_budget]
 
         self.set_sheet(self.demand_sheet)
         with hold_cells():
@@ -114,21 +109,28 @@ class OffGridOptimizer:
     def sheets_to_config(self):
         headers = Product.headers()
         _, initial, monthly = self.budget_data.value
-
+        transforms = {
+            "opening_cost": lambda x: float(x),
+            "incremental_cost": lambda x: float(x),
+            "maintenance_cost": lambda x: float(x),
+            "amortization": lambda x: float(x),
+            "monthly_capacity": lambda x: list(map(float, x))
+        }
         return {
             "demand": {
-                "monthly_electricity_demand": self.demand_elec.value,
-                "monthly_heat_demand": self.demand_heat.value
+                "monthly_electricity_demand": list(map(float, self.demand_elec.value)),
+                "monthly_heat_demand": list(map(float, self.demand_heat.value))
             },
             "budget": {
-                "initial": initial,
-                "monthly": monthly
+                "initial": float(initial),
+                "monthly": float(monthly)
             },
             "grid": {
                 "grid_cost_kwh": 1,
                 "grid_cost_env": 1
             },
-            "products": [{k: v for k, v in zip(headers, product.value)} for product in self.product_rows]
+            "products": [{k: (v if k not in transforms else transforms[k](v))
+                          for k, v in zip(headers, product.value)} for product in self.product_rows]
         }
 
     def optimize(self, btn):
@@ -138,4 +140,3 @@ class OffGridOptimizer:
 
     def set_sheet(self, current_sheet):
         easy._last_sheet = current_sheet
-

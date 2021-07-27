@@ -12,7 +12,7 @@ EQUIVALENT_KEYS = {
     "ic": "incremental_cost",
     "mc": "maintenance_cost",
     "ca": "monthly_capacity",
-    "am": "amoritization"
+    "am": "amortization"
 }
 
 
@@ -22,14 +22,14 @@ class Product:
     ENERGY_TYPES = ['solar', 'wind', 'geothermal', 'biomass']
 
     def __init__(self, name: str, utility_type: str, energy_type: str, opening_cost: float, incremental_cost: float,
-                 maintenance_cost: float, monthly_capacity: List[float], amoritization: float):
+                 maintenance_cost: float, monthly_capacity: List[float], amortization: float):
         self.name = name
         self.ut = utility_type        # H or E
         self.et = energy_type         # ENERGY_TYPES
         self.oc = opening_cost        # Dollars Per Opening
         self.ic = incremental_cost    # Dollars Per Product
         self.mc = maintenance_cost    # Annual Maintenance Cost
-        self.amoritization = amoritization
+        self.am = amortization
         self.ec = 0 # Per KwH TODO: Calculate environmental cost based on energy type
         self.ca = {month + 1: capacity for month, capacity in enumerate(monthly_capacity)}  # KwH per Month
         self.x = None  # Whether opening cost must be paid
@@ -56,3 +56,11 @@ class Product:
                 products[-1].init_dvs(model)
 
         return products
+
+    @classmethod
+    def headers(cls):
+        return ('name', 'utility_type', 'energy_type', 'opening_cost', 'incremental_cost',
+                'maintenance_cost', 'amortization', 'monthly_capacity')
+
+    def parameters(self):
+        return self.name, self.ut, self.et, self.oc, self.ic, self.mc, self.am, list(self.ca.values())

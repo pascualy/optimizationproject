@@ -9,7 +9,6 @@ def test_project():
     grid_config = config['grid']
     budget = config['budget']
     demand = config['demand']
-    grid = Grid(grid_config['grid_cost_kwh'], grid_config['grid_cost_env'])
     project = Project(product_list=config['products'],
                       grid_cost_kwh=grid_config['grid_cost_kwh'],
                       grid_cost_env=grid_config['grid_cost_env'],

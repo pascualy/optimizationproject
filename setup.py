@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-
+# jupyter labextension install ipysheet
 setup(
     name="final_project",
     version="1.0",
