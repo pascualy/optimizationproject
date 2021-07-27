@@ -1,2 +1,2 @@
-# optimizationproject
-Final optimization project for 15.066
+# Final Optimization Project [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pascualy/optimizationproject/main?filepath=index.ipynb)
+
