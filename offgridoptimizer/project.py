@@ -65,7 +65,6 @@ class Project:
         return sum(product.mc * product.y if not concretize else product.y.x for product in self.products) + \
                 self.grid.total_grid_cost(concretize=concretize)
 
-
     ####################
     # Project Capacity #
     ####################

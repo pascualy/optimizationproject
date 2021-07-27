@@ -1,5 +1,5 @@
-from offgridoptimizer import Project, Product
-
+from offgridoptimizer import Project, Product, validate_config
+from jsonschema import ValidationError
 import copy
 import ipysheet
 from ipysheet import sheet, cell, hold_cells, row, column, easy
@@ -9,44 +9,155 @@ from datetime import date
 from ipywidgets import Layout, Button, Box, FloatText, Textarea, Dropdown, Label, IntSlider
 from ipywidgets import HTML, Layout, Dropdown, Output, Textarea, VBox, Label
 
+def try_cast_float(x):
+    try:
+        return float(x)
+    except ValueError:
+        return x
+
+class Sheet:
+    def __init__(self, rows, columns):
+        self.sheet = sheet(rows=rows, columns=columns)
+
+    def set_sheet(self):
+        easy._last_sheet = self.sheet
+
+
+class BudgetSheet(Sheet):
+    def __init__(self):
+        super().__init__(rows=2, columns=3)
+        with hold_cells():
+            self.header = row(0, ['', 'initial_budget', 'monthly_budget'], font_weight='bold')
+            self.header_dollars = cell(1, 0, 'Dollars ($)', font_weight='bold')
+            self.data = row(1, ['', ''], column_start=1)
+
+    def update(self, initial, monthly):
+        self.set_sheet()
+        with hold_cells():
+            self.data.value = [initial, monthly]
+
+
+class ProductSheet(Sheet):
+    def __init__(self):
+        super().__init__(rows=10, columns=8)
+        with hold_cells():
+            self.header = row(0, [header for col, header in enumerate(Product.headers())], font_weight='bold')
+
+        self.rows = []
+
+        self.add_product_row_button = widgets.Button(description='Add Row')
+        out = widgets.Output()
+
+        self.add_product_row_button.on_click(self.add_row)
+
+    def update(self, products):
+        self.set_sheet()
+        with hold_cells():
+            self.sheet.rows = 1
+            self.sheet.rows = len(products) + 1
+            for row_num, product in enumerate(products):
+                info = [data if not isinstance(data, list) else data for col, data in enumerate(product.parameters())]
+                self.rows.append(row(row_num + 1, info))
+
+    def add_row(self):
+        self.sheet.rows += 1
+
+
+class DemandSheet(Sheet):
+    def __init__(self):
+        super().__init__(rows=3, columns=13)
+        with hold_cells():
+            self.demand_types = column(0, ['', 'monthly_electricity_demand', 'monthly_heat_demand'], font_weight='bold')
+            month_strs = [date(1900, month, month).strftime('%B') for month in range(1, 13)]
+            self.demand_header = row(0, month_strs, column_start=1, font_weight='bold')
+            self.demand_elec = row(1, ['' for _ in range(12)], column_start=1)
+            self.demand_heat = row(2, ['' for _ in range(12)], column_start=1)
+
+    def update(self, elec_demand, heat_demand):
+        self.set_sheet()
+        with hold_cells():
+            self.demand_elec.value = elec_demand
+            self.demand_heat.value = heat_demand
+
+class CostSheet(Sheet):
+    def __init__(self):
+        super().__init__(rows=6, columns=2)
+        with hold_cells():
+            self.cost_header = column(0, ["Total Opening Cost", "Total Maintenance Cost",
+                                          "Total Incremental Cost", "Total Environmental Cost",
+                                          "Total Grid Cost"], row_start=1, font_weight='bold')
+            self.cost_header_dollars = cell(0, 1, "Dollar ($)", font_weight='bold')
+            self.cost_values = column(1, ["", "", "", "", ""], row_start=1)
+
+    def update(self, costs):
+        self.cost_values.value = [v for _, v in costs]
+
+
+class SelectedProductsSheet(Sheet):
+    def __init__(self):
+        super().__init__(rows=1, columns=2)
+        with hold_cells():
+            self.sproducts_sheet_headers = row(0, ['Product Name', 'Quantity'], font_weight='bold')
+
+        self.sproducts = []
+
+    def update(self, selected_products):
+        self.sheet.rows = 1
+        self.sheet.rows = 1 + len(selected_products)
+        self.set_sheet()
+        for idx, sproduct in enumerate(selected_products):
+            row(idx + 1, sproduct)
+
+
+def header(text):
+    return HTML(f"<h2>{text}</h2>", layout=Layout(height='auto'))
+
+
+def interface_box(items):
+    return Box(items, layout=Layout(
+        display='flex',
+        flex_flow='column',
+        border='solid 2px',
+        align_items='stretch',
+        width='100%'))
+
+
+class GridSheet(Sheet):
+    def __init__(self):
+        super().__init__(rows=2, columns=3)
+        with hold_cells():
+            self.header = row(0, ['', 'grid_cost_kwh', 'grid_cost_env'], font_weight='bold')
+            self.header_dollars = cell(1, 0, 'Dollars ($)', font_weight='bold')
+            self.data = row(1, ['', ''], column_start=1)
+
+    def update(self, grid_cost_kwh, grid_cost_env):
+        self.set_sheet()
+        with hold_cells():
+            self.data.value = [grid_cost_kwh, grid_cost_env]
+
 
 class OffGridOptimizer:
     def __init__(self, default_config_path='./configs/logan/config.json'):
         self.default_config_path = default_config_path
 
-        # Product Sheet and Cells
-        self.products_sheet = sheet(rows=10, columns=8)
-        with hold_cells():
-            self.product_header = row(0, [header for col, header in enumerate(Product.headers())])
+        # Sheets for Input Interface
+        self.products_sheet = ProductSheet()
+        self.budget_sheet = BudgetSheet()
+        self.demand_sheet = DemandSheet()
+        self.grid_sheet = GridSheet()
 
-        self.product_rows = []
+        # Sheets for Output Interface
+        self.cost_sheet = CostSheet()
+        self.selected_products_sheet = SelectedProductsSheet()
 
-        # Budget Sheet and Cells
-        self.budget_sheet = sheet(rows=2, columns=3)
-        with hold_cells():
-            self.budget_header = row(0, ['', 'initial_budget', 'monthly_budget'])
-            self.budget_data = row(1, ['Dollars ($)', '', ''])
-
-        # Demand Sheet and Cells
-        self.demand_sheet = sheet(rows=3, columns=13)
-        with hold_cells():
-            self.demand_types = column(0, ['', 'monthly_electricity_demand', 'monthly_heat_demand'])
-            month_strs = [date(1900, month, month).strftime('%B') for month in range(1, 13)]
-            self.demand_header = row(0, month_strs, column_start=1)
-            self.demand_elec = row(1, ['' for _ in range(12)], column_start=1)
-            self.demand_heat = row(2, ['' for _ in range(12)], column_start=1)
-
-        self.grid_sheet = sheet(rows=3, columns=2)
-
+        # Buttons
         self.btn_default_config = widgets.Button(description='Load Default',
                                                  disabled=False,
                                                  button_style='',
                                                  tooltip='Click me',
                                                  icon='check')
         self.btn_default_config.on_click(self.load_sheets)
-        self.btn_upload_config = widgets.FileUpload(
-            accept='csv',
-            multiple=False)
+        self.btn_upload_config = widgets.FileUpload(accept='csv', multiple=False)
 
         self.btn_optimize = widgets.Button(description='Optimize!',
                                            disabled=False,
@@ -55,146 +166,96 @@ class OffGridOptimizer:
                                            icon='check')
         self.btn_optimize.on_click(self.optimize)
 
-        self.layout = Layout(
-            display='flex',
-            flex_flow='row',
-            justify_content='space-between'
-        )
-
-        self.add_product_row_button = widgets.Button(description='Add Row')
-        out = widgets.Output()
-
-        self.add_product_row_button.on_click(self.add_row)
-
-        self.items = [
-            HTML("<h2>Off-Grid Optimizer</h2>", layout=Layout(height='auto')),
-            self.btn_default_config,
-            self.btn_upload_config,
-            HTML("<h2>Demand</h2>", layout=Layout(height='auto')),
-            self.demand_sheet,
-            HTML("<h2>Budget</h2>", layout=Layout(height='auto')),
-            self.budget_sheet,
-            HTML("<h2>Products</h2>", layout=Layout(height='auto')),
-            widgets.VBox([self.add_product_row_button, self.products_sheet]),
-            self.btn_optimize
+        self.error_text = HTML("", layout=Layout(height='auto'))
+        # Input Interface
+        self.input_items = [
+            header("Off-Grid Optimizer"),
+            self.btn_default_config, self.btn_upload_config,
+            header("Demand"), self.demand_sheet.sheet,
+            header("Budget"), self.budget_sheet.sheet,
+            header("Grid"), self.grid_sheet.sheet,
+            header("Products"), widgets.VBox([self.products_sheet.add_product_row_button, self.products_sheet.sheet]),
+            widgets.HBox([self.btn_optimize, self.error_text])
         ]
+        self.input = interface_box(self.input_items)
 
-        self.input = Box(self.items, layout=Layout(
-            display='flex',
-            flex_flow='column',
-            border='solid 2px',
-            align_items='stretch',
-            width='100%'
-        ))
-
-        self.cost_sheet = sheet(rows=6, columns=2)
-        with hold_cells():
-            self.cost_header = column(0, ["Total Opening Cost", "Total Maintenance Cost",
-                       "Total Incremental Cost", "Total Environmental Cost",
-                       "Total Grid Cost"], row_start=1)
-            self.cost_values = column(1, ["Dollar ($)", "", "", "", "", ""])
-
-        self.sproducts_sheet = sheet(rows=1, columns=2)
-        with hold_cells():
-            self.sproducts_sheet_headers = row(0, ['Product Name', 'Quantity'])
-
-        self.sproducts = []
-
+        # Output Interface
         self.output_items = [
             HTML("<h2>Results</h2>", layout=Layout(height='auto')),
-            self.cost_sheet,
-            self.sproducts_sheet
+            self.cost_sheet.sheet,
+            self.selected_products_sheet.sheet
         ]
+        self.output = interface_box(self.output_items)
 
-        self.output = Box(self.output_items, layout=Layout(
-            display='flex',
-            flex_flow='column',
-            border='solid 2px',
-            align_items='stretch',
-            width='100%'
-        ))
-
-        self.interface_items = [
-            self.input,
-            self.output
-        ]
-
-        self.interface = Box(self.interface_items, layout=Layout(
-            display='flex',
-            flex_flow='column',
-            border='solid 2px',
-            align_items='stretch',
-            width='100%'
-        ))
-
+        # Combined Interface
+        self.interface = interface_box([self.input, self.output])
 
         self.project = None
 
     def load_sheets(self, btn):
         self.project = Project.project_from_config_path(self.default_config_path)
         project = self.project
-
         products = project.products
-        self.set_sheet(self.products_sheet)
-        with hold_cells():
-            self.products_sheet.rows = 1
-            self.products_sheet.rows = len(products) + 1
-            for row_num, product in enumerate(products):
-                info = [data if not isinstance(data, list) else data for col, data in enumerate(product.parameters())]
-                self.product_rows.append(row(row_num + 1, info))
 
-        self.set_sheet(self.budget_sheet)
-        with hold_cells():
-            self.budget_data.value = ['Dollars ($)', project.initial_budget, project.monthly_budget]
-
-        self.set_sheet(self.demand_sheet)
-        with hold_cells():
-            self.demand_elec.value = [project.monthly_electricity_demand[month] for month in range(1, 13)]
-            self.demand_heat.value = [project.monthly_heat_demand[month] for month in range(1, 13)]
+        self.products_sheet.update(products=products)
+        self.budget_sheet.update(initial=project.initial_budget, monthly=project.monthly_budget)
+        self.demand_sheet.update(elec_demand=[project.monthly_electricity_demand[month] for month in range(1, 13)],
+                                 heat_demand=[project.monthly_heat_demand[month] for month in range(1, 13)])
+        self.grid_sheet.update(grid_cost_kwh=self.project.grid.grid_cost_kwh, grid_cost_env=self.project.grid.grid_cost_env)
 
     def sheets_to_config(self):
         headers = Product.headers()
-        _, initial, monthly = self.budget_data.value
+        initial, monthly = self.budget_sheet.data.value
+        grid_cost_kwh, grid_cost_env = self.grid_sheet.data.value
         transforms = {
-            "opening_cost": lambda x: float(x),
-            "incremental_cost": lambda x: float(x),
-            "maintenance_cost": lambda x: float(x),
-            "amortization": lambda x: float(x),
-            "monthly_capacity": lambda x: list(map(float, x))
+            "opening_cost": try_cast_float,
+            "incremental_cost": try_cast_float,
+            "maintenance_cost": try_cast_float,
+            "amortization": try_cast_float,
+            "monthly_capacity": lambda x: list(map(try_cast_float, x))
         }
         return {
             "demand": {
-                "monthly_electricity_demand": list(map(float, self.demand_elec.value)),
-                "monthly_heat_demand": list(map(float, self.demand_heat.value))
+                "monthly_electricity_demand": list(map(float, self.demand_sheet.demand_elec.value)),
+                "monthly_heat_demand": list(map(float, self.demand_sheet.demand_heat.value))
             },
             "budget": {
                 "initial": float(initial),
                 "monthly": float(monthly)
             },
             "grid": {
-                "grid_cost_kwh": 1,
-                "grid_cost_env": 1
+                "grid_cost_kwh": grid_cost_kwh,
+                "grid_cost_env": grid_cost_env
             },
             "products": [{k: (v if k not in transforms else transforms[k](v))
-                          for k, v in zip(headers, product.value)} for product in self.product_rows]
+                          for k, v in zip(headers, product.value)} for product in self.products_sheet.rows]
         }
 
-    def optimize(self, btn):
+    def validate_sheets(self):
         config = self.sheets_to_config()
+        try:
+            validate_config(config)
+        except ValidationError as e:
+            self.error_text.value = f"<h4><font color='red'>{str(e.message)}<h4>"
+            raise e
+
+        return config
+
+    def optimize(self, btn):
+        self.error_text.value = ""
+        try:
+            config = self.validate_sheets()
+        except ValidationError:
+            return
+
         self.project = Project.project_from_config(config)
         self.project.optimize()
+        self.cost_sheet.update(costs=self.project.costs())
+        self.selected_products_sheet.update(selected_products=self.project.selected_products())
 
-        self.cost_values.value = ["Dollar ($)"] + [v for _, v in self.project.costs()]
-
-        sproducts = self.project.selected_products()
-        self.sproducts_sheet.rows = 1
-        self.sproducts_sheet.rows = 1 + len(sproducts)
-        self.set_sheet(self.sproducts_sheet)
-        for idx, sproduct in enumerate(sproducts):
-            row(idx + 1, sproduct)
 
     def set_sheet(self, current_sheet):
         easy._last_sheet = current_sheet
 
     def add_row(self, _):
-        self.products_sheet.rows += 1
+        self.products_sheet.add_row()

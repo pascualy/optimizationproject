@@ -25,7 +25,7 @@ schema = {
         "budget": {
             "required": ["initial", "monthly"],
             "properties": {
-                "inital":{
+                "initial": {
                     "type": "number"
                 },
                 "monthly": {
@@ -36,7 +36,7 @@ schema = {
         "grid": {
             "required": ["grid_cost_kwh", "grid_cost_env"],
             "properties": {
-                "grid_cost_kwh":{
+                "grid_cost_kwh": {
                     "type": "number"
                 },
                 "grid_cost_env": {
@@ -105,15 +105,6 @@ def load_and_validate(config_path):
 
 
 def validate_config(config):
-    error_string = None
-    try:
-        validate(instance=config, schema=schema)
-    except ValidationError as e:
-        error_string = e.schema["error_msg"]
-
-    if error_string:
-        print('Failed to parse configuration file:')
-        print(error_string)
-        sys.exit(1)
+    validate(instance=config, schema=schema)
 
     return config
