@@ -127,6 +127,7 @@ def default_layout(border='solid 2px'):
         align_items='stretch',
         width='100%')
 
+
 def interface_box(items):
     return Box(items, layout=default_layout())
 
@@ -263,11 +264,10 @@ class OffGridOptimizer:
 
     def optimize(self, btn):
         self.error_text.value = ""
-        config = self.validate_sheets()
-        # try:
-        #     config = self.validate_sheets()
-        # except ValidationError:
-        #     return
+        try:
+            config = self.validate_sheets()
+        except ValidationError:
+            return
 
         self.project = Project.project_from_config(config)
         self.project.optimize()
