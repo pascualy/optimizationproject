@@ -32,7 +32,7 @@
     },
     "budget": {
         "initial": 200000,
-        "monthly": 1000
+        "monthly": 500
     },
     "grid": {
         "grid_cost_kwh": 1,
@@ -46,17 +46,27 @@
       "opening_cost":  100,
       "incremental_cost": 10,
       "maintenance_cost": 0,
-      "capacity": 3,
+      "capacity": 8,
+      "amortization": 30
+    },
+    {
+      "name": "smallwind",
+      "utility_type": "electricity",
+      "energy_type": "wind",
+      "opening_cost": 150,
+      "incremental_cost": 100,
+      "maintenance_cost": 0,
+      "capacity": 10,
       "amortization": 30
     },
     {
       "name": "smallbattery",
       "utility_type": "electricity",
       "energy_type": "storage",
-      "opening_cost": 15,
-      "incremental_cost": 10,
+      "opening_cost": 150,
+      "incremental_cost": 100,
       "maintenance_cost": 0,
-      "capacity": 100000,
+      "capacity": 100,
       "amortization": 30
     }
   ]

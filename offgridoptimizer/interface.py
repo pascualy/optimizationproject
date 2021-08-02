@@ -1,4 +1,5 @@
 from offgridoptimizer import Project, Product, validate_config
+from offgridoptimizer.config_schema import get_location_options
 from jsonschema import ValidationError
 import copy
 import ipysheet
@@ -9,11 +10,13 @@ from datetime import date
 from ipywidgets import Layout, Button, Box, FloatText, Textarea, Dropdown, Label, IntSlider
 from ipywidgets import HTML, Layout, Dropdown, Output, Textarea, VBox, Label
 
+
 def try_cast_float(x):
     try:
         return float(x)
     except ValueError:
         return x
+
 
 class Sheet:
     def __init__(self, rows, columns):
@@ -54,12 +57,13 @@ class ProductSheet(Sheet):
         self.set_sheet()
         with hold_cells():
             self.sheet.rows = 1
+            self.rows = []
             self.sheet.rows = len(products) + 1
             for row_num, product in enumerate(products):
                 info = [data if not isinstance(data, list) else data for col, data in enumerate(product.parameters())]
                 self.rows.append(row(row_num + 1, info))
 
-    def add_row(self):
+    def add_row(self, btn):
         self.sheet.rows += 1
 
 
@@ -79,15 +83,16 @@ class DemandSheet(Sheet):
             self.demand_elec.value = elec_demand
             self.demand_heat.value = heat_demand
 
+
 class CostSheet(Sheet):
     def __init__(self):
         super().__init__(rows=6, columns=2)
         with hold_cells():
             self.cost_header = column(0, ["Total Opening Cost", "Total Maintenance Cost",
-                                          "Total Incremental Cost", "Total Environmental Cost",
-                                          "Total Grid Cost"], row_start=1, font_weight='bold')
+                                          "Total Incremental Cost", "Total Grid Cost"],
+                                      row_start=1, font_weight='bold')
             self.cost_header_dollars = cell(0, 1, "Dollar ($)", font_weight='bold')
-            self.cost_values = column(1, ["", "", "", "", ""], row_start=1)
+            self.cost_values = column(1, ["", "", "", ""], row_start=1)
 
     def update(self, costs):
         self.cost_values.value = [v for _, v in costs]
@@ -105,21 +110,25 @@ class SelectedProductsSheet(Sheet):
         self.sheet.rows = 1
         self.sheet.rows = 1 + len(selected_products)
         self.set_sheet()
+        self.sheet.sproducts = []
         for idx, sproduct in enumerate(selected_products):
-            row(idx + 1, sproduct)
+            self.sproducts.append(row(idx + 1, sproduct))
 
 
 def header(text):
     return HTML(f"<h2>{text}</h2>", layout=Layout(height='auto'))
 
 
-def interface_box(items):
-    return Box(items, layout=Layout(
+def default_layout(border='solid 2px'):
+    return Layout(
         display='flex',
         flex_flow='column',
-        border='solid 2px',
+        border=border,
         align_items='stretch',
-        width='100%'))
+        width='100%')
+
+def interface_box(items):
+    return Box(items, layout=default_layout())
 
 
 class GridSheet(Sheet):
@@ -150,6 +159,15 @@ class OffGridOptimizer:
         self.cost_sheet = CostSheet()
         self.selected_products_sheet = SelectedProductsSheet()
 
+        # Location Drop-Down
+
+        self.location_dropdown = widgets.Dropdown(
+            options=get_location_options(),
+            value=get_location_options()[0],
+            description='Location:',
+            disabled=False,
+        )
+
         # Buttons
         self.btn_default_config = widgets.Button(description='Load Default',
                                                  disabled=False,
@@ -163,18 +181,20 @@ class OffGridOptimizer:
                                            disabled=False,
                                            button_style='',
                                            tooltip='Click me',
-                                           icon='check')
+                                           icon='check',
+                                           align_items='stretch')
         self.btn_optimize.on_click(self.optimize)
 
         self.error_text = HTML("", layout=Layout(height='auto'))
         # Input Interface
         self.input_items = [
             header("Off-Grid Optimizer"),
+
+            self.location_dropdown,
             self.btn_default_config, self.btn_upload_config,
             header("Demand"), self.demand_sheet.sheet,
-            header("Budget"), self.budget_sheet.sheet,
-            header("Grid"), self.grid_sheet.sheet,
-            header("Products"), widgets.VBox([self.products_sheet.add_product_row_button, self.products_sheet.sheet]),
+            widgets.HBox([widgets.VBox([header("Budget"), self.budget_sheet.sheet], layout=default_layout(border=None)), widgets.VBox([header("Grid"), self.grid_sheet.sheet], layout=default_layout(border=None))]),
+            header("Products"), widgets.VBox([self.products_sheet.sheet, self.products_sheet.add_product_row_button]),
             widgets.HBox([self.btn_optimize, self.error_text])
         ]
         self.input = interface_box(self.input_items)
@@ -215,6 +235,7 @@ class OffGridOptimizer:
             "monthly_capacity": lambda x: list(map(try_cast_float, x))
         }
         return {
+            "location": self.location_dropdown.value,
             "demand": {
                 "monthly_electricity_demand": list(map(float, self.demand_sheet.demand_elec.value)),
                 "monthly_heat_demand": list(map(float, self.demand_sheet.demand_heat.value))
@@ -250,9 +271,9 @@ class OffGridOptimizer:
 
         self.project = Project.project_from_config(config)
         self.project.optimize()
+
         self.cost_sheet.update(costs=self.project.costs())
         self.selected_products_sheet.update(selected_products=self.project.selected_products())
-
 
     def set_sheet(self, current_sheet):
         easy._last_sheet = current_sheet

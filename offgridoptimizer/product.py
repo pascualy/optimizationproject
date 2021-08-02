@@ -4,6 +4,9 @@ from enum import Enum
 from tabulate import tabulate
 import gurobipy as gp
 
+NUM_MONTHS = 12
+NUM_HOURS = 24
+
 EQUIVALENT_KEYS = {
     "name": "name",
     "ut": "utility_type",
@@ -17,12 +20,13 @@ EQUIVALENT_KEYS = {
 
 
 class Product:
+    STORAGE = 'storage'
     HEAT = 'heat'
     ELEC = 'electricity'
-    ENERGY_TYPES = ['solar', 'wind', 'geothermal', 'biomass']
+    ENERGY_TYPES = ['solar', 'wind', 'geothermal', 'biomass', 'storage']
 
     def __init__(self, name: str, utility_type: str, energy_type: str, opening_cost: float, incremental_cost: float,
-                 maintenance_cost: float, monthly_capacity: List[float], amortization: float):
+                 maintenance_cost: float, capacity: List[float], amortization: float):
         self.name = name
         self.ut = utility_type        # H or E
         self.et = energy_type         # ENERGY_TYPES
@@ -30,8 +34,7 @@ class Product:
         self.ic = incremental_cost    # Dollars Per Product
         self.mc = maintenance_cost    # Annual Maintenance Cost
         self.am = amortization
-        self.ec = 0 # Per KwH TODO: Calculate environmental cost based on energy type
-        self.ca = {month + 1: capacity for month, capacity in enumerate(monthly_capacity)}  # KwH per Month
+        self.ca = capacity  # KwH per Month
         self.x = None  # Whether opening cost must be paid
         self.y = None  # How many units of this product to install
 
@@ -50,7 +53,10 @@ class Product:
         products = []
         for p in product_list:
             p = {EQUIVALENT_KEYS[k] if k in EQUIVALENT_KEYS else k: v for k,v in p.items()}
-            products.append(Product(**p))
+            if p['energy_type'] == Product.STORAGE:
+                products.append(StorageProduct(**p))
+            else:
+                products.append(Product(**p))
 
             if model:
                 products[-1].init_dvs(model)
@@ -64,3 +70,36 @@ class Product:
 
     def parameters(self):
         return self.name, self.ut, self.et, self.oc, self.ic, self.mc, self.am, list(self.ca.values())
+
+
+class StorageProduct(Product):
+    def __init__(self, name: str, utility_type: str, energy_type: str, opening_cost: float, incremental_cost: float,
+                 maintenance_cost: float, capacity: List[float], amortization: float):
+        super().__init__(name, utility_type, energy_type, opening_cost, incremental_cost,
+                         maintenance_cost, capacity, amortization)
+        self.b = None  # Excess energy generated per hour
+        self.sc = None  # Energy consumed from battery per hour
+
+    def init_dvs(self, model):
+        super().init_dvs(model)
+        self.b_used = [model.addVar(vtype=gp.GRB.BINARY) for _ in range(NUM_MONTHS * NUM_HOURS)]  # whether storage is stored to during hour
+        self.b = [model.addVar() for _ in range(NUM_MONTHS * NUM_HOURS)]  # how much electricity is stored a particular hour
+        self.sc_used = [model.addVar(vtype=gp.GRB.BINARY) for _ in
+                       range(NUM_MONTHS * NUM_HOURS)]  # whether storage is used consumed to during hour
+        self.sc = [model.addVar() for _ in range(NUM_MONTHS * NUM_HOURS)]  # how much electricity is consumed from storage on a particular hour
+
+    def capacity(self, month, hour, concretize=False):
+        return self.b[(month - 1) * NUM_MONTHS + hour] if not concretize else self.b[(month - 1) * NUM_MONTHS + hour].x
+
+    def storage_consumed(self, month, hour, concretize=False):
+        return self.sc[(month - 1) * NUM_MONTHS + hour] if not concretize else self.sc[(month - 1) * NUM_MONTHS + hour].x
+
+    def electricity_stored(self, month, hour, concretize=False):
+        return self.b[(month - 1) * NUM_MONTHS + hour] if not concretize else self.b[(month - 1) * NUM_MONTHS + hour].x
+
+    def storage_consumed_bin(self, month, hour, concretize=False):
+        return self.sc_used[(month - 1) * NUM_MONTHS + hour] if not concretize else self.sc[
+            (month - 1) * NUM_MONTHS + hour].x
+
+    def electricity_stored_bin(self, month, hour, concretize=False):
+        return self.b_used[(month - 1) * NUM_MONTHS + hour] if not concretize else self.b[(month - 1) * NUM_MONTHS + hour].x

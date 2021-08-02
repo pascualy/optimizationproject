@@ -1,23 +1,27 @@
 import json
 import sys
 from jsonschema import validate, ValidationError
+from pathlib import Path
 
 schema = {
-    "required": ["demand", "budget", "grid", "products"],
+    "required": ["location", "demand", "budget", "grid", "products"],
     "properties": {
+        "location": {
+            "type": "string"
+        },
         "demand": {
-            "required": ["monthly_electricity_demand", "monthly_heat_demand"],
+            "required": ["electricity_demand", "heat_demand"],
             "properties": {
-                "monthly_electricity_demand": {
+                "electricity_demand": {
                     "type": "array",
                     "items": {
-                        "type": "number"
+                        "type": "array"
                     }
                 },
-                "monthly_heat_demand": {
+                "heat_demand": {
                     "type": "array",
                     "items": {
-                        "type": "number"
+                        "type": "array"
                     }
                 }
             }
@@ -46,14 +50,14 @@ schema = {
         },
         "products": {
             "type": "array",
-            "items": { "$ref": "#/$defs/product" }
+            "items": {"$ref": "#/$defs/product"}
         }
     },
     "$defs": {
         "product": {
             "type": "object",
             "required": ["name", "utility_type", "energy_type", "opening_cost", "incremental_cost",
-                         "maintenance_cost", "monthly_capacity", "amortization"],
+                         "maintenance_cost", "capacity", "amortization"],
             "properties": {
                 "name": {
                     "type": "string"
@@ -65,8 +69,8 @@ schema = {
                 },
                 "energy_type": {
                     "type": "string",
-                    "enum": ['solar', 'wind', 'geothermal', 'biomass'],
-                    "error_msg": "Only supported energy types are [solar, wind, geothermal, biomass]"
+                    "enum": ['solar', 'wind', 'geothermal', 'biomass', 'storage'],
+                    "error_msg": "Only supported energy types are [solar, wind, geothermal, biomass, storage]"
                 },
                 "opening_cost": {
                     "type": "number"
@@ -77,17 +81,38 @@ schema = {
                 "maintenance_cost": {
                     "type": "number"
                 },
-                "monthly_capacity": {
-                    "type": "array",
-                    "items": {
-                        "type": "number"
-                    }
+                "capacity": {
+                    "type": "number"
                 },
                 "amortization": {
                     "type": "number"
                 },
-
-            }
+            },
+            "anyOf": [
+                {
+                  "properties": {
+                    "energy_type": {"const": "solar"}
+                  },
+                  "required": ["capacity"]
+                },
+                {
+                  "properties": {
+                    "energy_type": {"const": "wind"}
+                  },
+                  "required": ["capacity"]
+                },
+                {
+                    "properties": {
+                        "energy_type": {"const": "storage"}
+                    },
+                    "required": ["capacity"]
+                },
+                {
+                  "properties": {
+                    "energy_type": {"const": "geothermal"}
+                  },
+                }
+              ]
         }
     }
 }
@@ -108,3 +133,9 @@ def validate_config(config):
     validate(instance=config, schema=schema)
 
     return config
+
+
+def get_location_options():
+    capacity_data = Path(__file__).parent.parent / 'configs' / 'capacity_data'
+    return list(set([' '.join([word.capitalize() for word in path.stem.split('_')[2:]]) for path in capacity_data.glob('./*')]))
+

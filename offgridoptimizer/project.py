@@ -4,13 +4,14 @@ from typing import List
 from . import Product, Grid
 from offgridoptimizer.constraints import DemandConstraint, ProductConstraint, BudgetConstraint
 from offgridoptimizer.config_schema import load_and_validate, validate_config
+from offgridoptimizer.capacity import Capacity
 
 from tabulate import tabulate
 
 import gurobipy as gp
 
 GP_ENV = gp.Env(empty=True)
-GP_ENV.setParam('LogToConsole', 0)
+# GP_ENV.setParam('LogToConsole', 0)
 GP_ENV.start()
 
 MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
@@ -21,7 +22,11 @@ def list2dict(l):
 
 
 class Project:
-    def __init__(self, product_list, grid_cost_kwh, grid_cost_env, initial_budget, monthly_budget, monthly_electricity_demand, monthly_heat_demand):
+    def __init__(self, product_list, grid_cost_kwh, grid_cost_env, initial_budget,
+                 monthly_budget, monthly_electricity_demand, monthly_heat_demand, location):
+        self.monthly_electricity_demand = list2dict(monthly_electricity_demand)
+        self.monthly_heat_demand = list2dict(monthly_heat_demand)
+        self.efficiency = Capacity.from_location(location)
 
         self.model = gp.Model('Project', env=GP_ENV)
         self.grid = Grid(grid_cost_kwh, grid_cost_env, model=self.model)
@@ -31,9 +36,6 @@ class Project:
         self.initial_budget = initial_budget
         self.monthly_budget = monthly_budget
         self.budget_constraint = BudgetConstraint(self)
-
-        self.monthly_electricity_demand = list2dict(monthly_electricity_demand)
-        self.monthly_heat_demand = list2dict(monthly_heat_demand)
         self.demand_constraint = DemandConstraint(self)
 
         self.set_objective()
@@ -54,20 +56,53 @@ class Project:
     def total_incremental_cost(self, concretize=False):
         return sum(product.y if not concretize else product.y.x * product.ic for product in self.products)
 
-    def total_environmental_cost(self, concretize=False):
-        return sum(product.y if not concretize else product.y.x * product.ec for product in self.products)
-
     def capital_costs(self, concretize=False):
         return sum(product.oc * product.x if not concretize else product.x.x +
                    product.ic * product.y if not concretize else product.y.x for product in self.products)
 
     def operational_costs(self, concretize=False):
-        return sum(product.mc * product.y if not concretize else product.y.x for product in self.products) + \
-                self.grid.total_grid_cost(concretize=concretize)
+        return sum(product.mc * product.y if not concretize else product.y.x for product in self.products)
+        # return sum(product.mc * product.y if not concretize else product.y.x for product in self.products) + \
+        #         self.grid.actual_total_grid_cost(concretize=concretize)
 
     ####################
     # Project Capacity #
     ####################
+    def electricity_stored(self, month, hour, concretize=False):
+        return sum(product.electricity_stored(month=month, hour=hour, concretize=concretize)
+                   for product in self.products if product.et == Product.STORAGE)
+
+    def storage_consumed(self, month, hour, concretize=False):
+        return sum(product.storage_consumed(month=month, hour=hour, concretize=concretize)
+                   for product in self.products if product.et == Product.STORAGE)
+
+    def storage_capacity(self, month, hour, concretize=False):
+        return sum(product.capacity(month=month, hour=hour, concretize=concretize)
+                   for product in self.products if product.et == Product.STORAGE)
+
+    def electricity_capacity(self, month, hour, concretize=False):
+        if concretize:
+            return sum(product.y.x * product.ca * self.efficiency.lookup(month, hour, product.et)
+                   for product in self.products if product.ut == Product.ELEC and product.et != Product.STORAGE)
+        else:
+            return sum(product.y * product.ca * self.efficiency.lookup(month, hour, product.et)
+                       for product in self.products if product.ut == Product.ELEC and product.et != Product.STORAGE)
+
+    def heat_capacity(self, month, hour):
+        return self._capacity(month, hour, Product.HEAT)
+
+    def grid_capacity(self, month, hour, concretize=False):
+        return self.grid.electricity_usage(month, hour, concretize=concretize)
+
+    def _capacity(self, month, hour, utilty_type):
+        return sum(product.ca * self.efficiency.lookup(month, hour, product.et)
+                   for product in self.products if product.ut == utilty_type)
+
+    def electricity_demand(self, month, hour):
+        return self.monthly_electricity_demand[month][hour]
+
+    def heat_demand(self, month, hour):
+        pass
 
     def elec_capacity_by_month(self, month):
         return self._capacity_by_month(month, Product.ELEC)
@@ -83,10 +118,12 @@ class Project:
     #######################
 
     def set_demand_constraints(self, electricity_demand, heat_demand):
-        self.demand.update_constraints(electricity_demand, heat_demand)
+        self.monthly_electricity_demand = electricity_demand
+        self.monthly_heat_demand = heat_demand
+        self.demand_constraint.update_constraints()
         self.set_objective()
 
-    def set_product_constraints(self, products, grid=None):
+    def set_product_constraints(self, new_products, grid=None):
         self.products = new_products
         if grid:
             self.grid = grid
@@ -97,7 +134,7 @@ class Project:
     def set_budget_constraints(self, initial_budget, monthly_budget):
         self.initial_budget = initial_budget
         self.monthly_budget = monthly_budget
-        self.budget.update_constraints()
+        self.budget_constraint.update_constraints()
         self.set_objective()
 
     #####################
@@ -108,8 +145,7 @@ class Project:
         return self.model.setObjective(self.total_opening_cost() +
                                        self.total_maintenance_cost() +
                                        self.total_incremental_cost() +
-                                       self.total_environmental_cost() +
-                                       self.grid.total_grid_cost(), gp.GRB.MINIMIZE)
+                                       self.grid.artificial_total_grid_cost(), gp.GRB.MINIMIZE)
 
     def optimize(self):
         self.model.optimize()
@@ -117,7 +153,7 @@ class Project:
     def print_results(self):
         headers = ['Product Name', 'Quantity']
         selected_products = tabulate([(p.name, p.y.x) for p in self.products] +
-                                     [("grid", sum(x.x for x in self.grid.monthly_usage.values()))], headers=headers)
+                                     [("grid", sum(sum(hour.x for hour in x) for x in self.grid.monthly_usage.values()))], headers=headers)
         print(selected_products)
 
         print('\n\n')
@@ -131,8 +167,7 @@ class Project:
         return (("Total Opening Cost", self.total_opening_cost(concretize=True)),
          ("Total Maintenance Cost", self.total_maintenance_cost(concretize=True)),
          ("Total Incremental Cost", self.total_incremental_cost(concretize=True)),
-         ("Total Environmental Cost", self.total_environmental_cost(concretize=True)),
-         ("Total Grid Cost", self.grid.total_grid_cost(concretize=True)))
+         ("Total Grid Cost", self.grid.actual_total_grid_cost(concretize=True)))
 
     def selected_products(self):
         return [(p.name, p.y.x) for p in self.products] + \
@@ -158,4 +193,6 @@ class Project:
                        initial_budget=budget['initial'],
                        monthly_budget=budget['monthly'],
                        monthly_electricity_demand=demand['monthly_electricity_demand'],
-                       monthly_heat_demand=demand['monthly_heat_demand'])
+                       monthly_heat_demand=demand['monthly_heat_demand'],
+                       location=config['location'])
+
