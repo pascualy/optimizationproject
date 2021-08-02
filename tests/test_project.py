@@ -11,7 +11,6 @@ def test_project():
     demand = config['demand']
     project = Project(product_list=config['products'],
                       grid_cost_kwh=grid_config['grid_cost_kwh'],
-                      grid_cost_env=grid_config['grid_cost_env'],
                       initial_budget=budget['initial'],
                       monthly_budget=budget['monthly'],
                       monthly_electricity_demand=demand['electricity_demand'],
@@ -20,11 +19,23 @@ def test_project():
     project.optimize()
     project.print_results()
 
-    z = [((m,h), project.electricity_stored(m,h, True), project.storage_consumed(m,h, True), project.electricity_capacity(m, h, True), project.grid_capacity(m, h, True), project.electricity_demand(m, h)) for m in range(1, 13) for h in range(0, 24)]
+    z = []
+    times = []
+    for m in range(1, 13):
+        for h in range(0, 24):
+            z += [((m, h), project.electricity_stored(m, h, True),
+                   project.storage_consumed(m, h, True),
+                   project.electricity_capacity(m, h, True),
+                   project.grid_capacity(m, h, True),
+                   project.electricity_demand(m, h),
+                  sum(project.electricity_stored(x,y,True) for x, y in times),
+                  sum(project.storage_consumed(x,y,True) for x, y in times))]
+            times.append((m,h))
+    # ((1, 7), 0.0, 0.0, 3525.154838709677, 0.0, 10, 0.0, 0.0)
     for a in z:
         print(a)
-        if a[0][1] == 16:
-            break
+        # if a[0][1] == 16:
+        #     break
     # times = []
     # for month in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]:
     #     for hour in list(range(24)):
@@ -32,7 +43,7 @@ def test_project():
     #         total_stored = sum(project.electricity_stored(m, h, True) for m, h in times[:-1])
     #         total_consumed = sum(project.storage_consumed(m, h, True) for m, h in times[:-1])
     #         print((total_stored, total_consumed))
-
+    x=5
 test_project()
 
 

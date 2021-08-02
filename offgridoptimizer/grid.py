@@ -2,13 +2,14 @@ import gurobipy as gp
 
 NUM_HOURS = 24
 
+
 class Grid:
     MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
-    def __init__(self, grid_cost_kwh, grid_cost_env, model=None):
+    def __init__(self, grid_cost_kwh, model=None):
         self.monthly_usage = None
         self.grid_cost_kwh = grid_cost_kwh
-        self.artificial_grid_cost_kwh = 10000000
+        self.artificial_grid_cost_kwh = 20  # TODO: change this to large value
         if model:
             self.init_dvs(model)
 
@@ -32,6 +33,3 @@ class Grid:
 
     def heat_usage_by_month(self, month):
         return self.monthly_usage[month]  # TODO: seperate decision variable for "heat" usage?
-
-    def excess_capacity(self, month, hour, concretize=False):
-        return self.excess[month][hour] if concretize == False else self.excess[month][hour].x

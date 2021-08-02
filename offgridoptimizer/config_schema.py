@@ -38,14 +38,11 @@ schema = {
             }
         },
         "grid": {
-            "required": ["grid_cost_kwh", "grid_cost_env"],
+            "required": ["grid_cost_kwh"],
             "properties": {
                 "grid_cost_kwh": {
                     "type": "number"
                 },
-                "grid_cost_env": {
-                    "type": "number"
-                }
             }
         },
         "products": {

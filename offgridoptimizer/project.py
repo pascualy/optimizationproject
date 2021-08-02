@@ -22,14 +22,14 @@ def list2dict(l):
 
 
 class Project:
-    def __init__(self, product_list, grid_cost_kwh, grid_cost_env, initial_budget,
+    def __init__(self, product_list, grid_cost_kwh, initial_budget,
                  monthly_budget, monthly_electricity_demand, monthly_heat_demand, location):
         self.monthly_electricity_demand = list2dict(monthly_electricity_demand)
         self.monthly_heat_demand = list2dict(monthly_heat_demand)
         self.efficiency = Capacity.from_location(location)
 
         self.model = gp.Model('Project', env=GP_ENV)
-        self.grid = Grid(grid_cost_kwh, grid_cost_env, model=self.model)
+        self.grid = Grid(grid_cost_kwh, model=self.model)
         self.products = Product.create_products(product_list, model=self.model)
         self.product_constraint = ProductConstraint(self)
 
@@ -48,20 +48,20 @@ class Project:
     #################
 
     def total_opening_cost(self, concretize=False):
-        return sum(product.x if not concretize else product.x.x * product.oc for product in self.products)
+        return sum((product.x if not concretize else product.x.x) * product.oc for product in self.products)
 
     def total_maintenance_cost(self, concretize=False):
-        return sum(product.y if not concretize else product.y.x * product.mc for product in self.products)
+        return sum((product.y if not concretize else product.y.x) * product.mc for product in self.products)
 
     def total_incremental_cost(self, concretize=False):
-        return sum(product.y if not concretize else product.y.x * product.ic for product in self.products)
+        return sum((product.y if not concretize else product.y.x) * product.ic for product in self.products)
 
     def capital_costs(self, concretize=False):
-        return sum(product.oc * product.x if not concretize else product.x.x +
-                   product.ic * product.y if not concretize else product.y.x for product in self.products)
+        return sum(product.oc * (product.x if not concretize else product.x.x) +
+                   product.ic * (product.y if not concretize else product.y.x) for product in self.products)
 
     def operational_costs(self, concretize=False):
-        return sum(product.mc * product.y if not concretize else product.y.x for product in self.products)
+        return sum(product.mc * (product.y if not concretize else product.y.x) for product in self.products)
         # return sum(product.mc * product.y if not concretize else product.y.x for product in self.products) + \
         #         self.grid.actual_total_grid_cost(concretize=concretize)
 
@@ -76,9 +76,9 @@ class Project:
         return sum(product.storage_consumed(month=month, hour=hour, concretize=concretize)
                    for product in self.products if product.et == Product.STORAGE)
 
-    def storage_capacity(self, month, hour, concretize=False):
-        return sum(product.capacity(month=month, hour=hour, concretize=concretize)
-                   for product in self.products if product.et == Product.STORAGE)
+    # def storage_capacity(self, month, hour, concretize=False):
+    #     return sum(product.capacity(month=month, hour=hour, concretize=concretize)
+    #                for product in self.products if product.et == Product.STORAGE)
 
     def electricity_capacity(self, month, hour, concretize=False):
         if concretize:
@@ -104,14 +104,14 @@ class Project:
     def heat_demand(self, month, hour):
         pass
 
-    def elec_capacity_by_month(self, month):
-        return self._capacity_by_month(month, Product.ELEC)
-
-    def heat_capacity_by_month(self, month):
-        return self._capacity_by_month(month, Product.HEAT)
-
-    def _capacity_by_month(self, month, utilty_type):
-        return sum(product.ca[month] * product.y for product in self.products if product.ut == utilty_type)
+    # def elec_capacity_by_month(self, month):
+    #     return self._capacity_by_month(month, Product.ELEC)
+    #
+    # def heat_capacity_by_month(self, month):
+    #     return self._capacity_by_month(month, Product.HEAT)
+    #
+    # def _capacity_by_month(self, month, utilty_type):
+    #     return sum(product.ca[month] * product.y for product in self.products if product.ut == utilty_type)
 
     #######################
     # Project Constraints #
@@ -171,7 +171,7 @@ class Project:
 
     def selected_products(self):
         return [(p.name, p.y.x) for p in self.products] + \
-        [("grid", sum(x.x for x in self.grid.monthly_usage.values()))]
+        [("grid", sum(sum(x.x for x in month) for month in self.grid.monthly_usage.values()))]
 
     @classmethod
     def project_from_config_path(cls, config_path):
@@ -189,10 +189,9 @@ class Project:
         demand = config['demand']
         return Project(product_list=config['products'],
                        grid_cost_kwh=grid_config['grid_cost_kwh'],
-                       grid_cost_env=grid_config['grid_cost_env'],
                        initial_budget=budget['initial'],
                        monthly_budget=budget['monthly'],
-                       monthly_electricity_demand=demand['monthly_electricity_demand'],
-                       monthly_heat_demand=demand['monthly_heat_demand'],
+                       monthly_electricity_demand=demand['electricity_demand'],
+                       monthly_heat_demand=demand['heat_demand'],
                        location=config['location'])
 

@@ -135,14 +135,14 @@ class GridSheet(Sheet):
     def __init__(self):
         super().__init__(rows=2, columns=3)
         with hold_cells():
-            self.header = row(0, ['', 'grid_cost_kwh', 'grid_cost_env'], font_weight='bold')
+            self.header = row(0, ['', 'grid_cost_kwh'], font_weight='bold')
             self.header_dollars = cell(1, 0, 'Dollars ($)', font_weight='bold')
-            self.data = row(1, ['', ''], column_start=1)
+            self.data = row(1, [''], column_start=1)
 
-    def update(self, grid_cost_kwh, grid_cost_env):
+    def update(self, grid_cost_kwh):
         self.set_sheet()
         with hold_cells():
-            self.data.value = [grid_cost_kwh, grid_cost_env]
+            self.data.value = [grid_cost_kwh]
 
 
 class OffGridOptimizer:
@@ -221,32 +221,31 @@ class OffGridOptimizer:
         self.budget_sheet.update(initial=project.initial_budget, monthly=project.monthly_budget)
         self.demand_sheet.update(elec_demand=[project.monthly_electricity_demand[month] for month in range(1, 13)],
                                  heat_demand=[project.monthly_heat_demand[month] for month in range(1, 13)])
-        self.grid_sheet.update(grid_cost_kwh=self.project.grid.grid_cost_kwh, grid_cost_env=self.project.grid.grid_cost_env)
+        self.grid_sheet.update(grid_cost_kwh=self.project.grid.grid_cost_kwh)
 
     def sheets_to_config(self):
         headers = Product.headers()
         initial, monthly = self.budget_sheet.data.value
-        grid_cost_kwh, grid_cost_env = self.grid_sheet.data.value
+        grid_cost_kwh, = self.grid_sheet.data.value
         transforms = {
             "opening_cost": try_cast_float,
             "incremental_cost": try_cast_float,
             "maintenance_cost": try_cast_float,
             "amortization": try_cast_float,
-            "monthly_capacity": lambda x: list(map(try_cast_float, x))
+            "capacity": try_cast_float
         }
         return {
             "location": self.location_dropdown.value,
             "demand": {
-                "monthly_electricity_demand": list(map(float, self.demand_sheet.demand_elec.value)),
-                "monthly_heat_demand": list(map(float, self.demand_sheet.demand_heat.value))
+                "electricity_demand": [list(map(float, month)) for month in self.demand_sheet.demand_elec.value],
+                "heat_demand": [list(map(float, month)) for month in self.demand_sheet.demand_elec.value]
             },
             "budget": {
                 "initial": float(initial),
                 "monthly": float(monthly)
             },
             "grid": {
-                "grid_cost_kwh": grid_cost_kwh,
-                "grid_cost_env": grid_cost_env
+                "grid_cost_kwh": float(grid_cost_kwh)
             },
             "products": [{k: (v if k not in transforms else transforms[k](v))
                           for k, v in zip(headers, product.value)} for product in self.products_sheet.rows]
@@ -264,10 +263,11 @@ class OffGridOptimizer:
 
     def optimize(self, btn):
         self.error_text.value = ""
-        try:
-            config = self.validate_sheets()
-        except ValidationError:
-            return
+        config = self.validate_sheets()
+        # try:
+        #     config = self.validate_sheets()
+        # except ValidationError:
+        #     return
 
         self.project = Project.project_from_config(config)
         self.project.optimize()

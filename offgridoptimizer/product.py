@@ -66,10 +66,10 @@ class Product:
     @classmethod
     def headers(cls):
         return ('name', 'utility_type', 'energy_type', 'opening_cost', 'incremental_cost',
-                'maintenance_cost', 'amortization', 'monthly_capacity')
+                'maintenance_cost', 'amortization', 'capacity')
 
     def parameters(self):
-        return self.name, self.ut, self.et, self.oc, self.ic, self.mc, self.am, list(self.ca.values())
+        return self.name, self.ut, self.et, self.oc, self.ic, self.mc, self.am, self.ca
 
 
 class StorageProduct(Product):
@@ -82,10 +82,7 @@ class StorageProduct(Product):
 
     def init_dvs(self, model):
         super().init_dvs(model)
-        self.b_used = [model.addVar(vtype=gp.GRB.BINARY) for _ in range(NUM_MONTHS * NUM_HOURS)]  # whether storage is stored to during hour
         self.b = [model.addVar() for _ in range(NUM_MONTHS * NUM_HOURS)]  # how much electricity is stored a particular hour
-        self.sc_used = [model.addVar(vtype=gp.GRB.BINARY) for _ in
-                       range(NUM_MONTHS * NUM_HOURS)]  # whether storage is used consumed to during hour
         self.sc = [model.addVar() for _ in range(NUM_MONTHS * NUM_HOURS)]  # how much electricity is consumed from storage on a particular hour
 
     def capacity(self, month, hour, concretize=False):
@@ -96,10 +93,3 @@ class StorageProduct(Product):
 
     def electricity_stored(self, month, hour, concretize=False):
         return self.b[(month - 1) * NUM_MONTHS + hour] if not concretize else self.b[(month - 1) * NUM_MONTHS + hour].x
-
-    def storage_consumed_bin(self, month, hour, concretize=False):
-        return self.sc_used[(month - 1) * NUM_MONTHS + hour] if not concretize else self.sc[
-            (month - 1) * NUM_MONTHS + hour].x
-
-    def electricity_stored_bin(self, month, hour, concretize=False):
-        return self.b_used[(month - 1) * NUM_MONTHS + hour] if not concretize else self.b[(month - 1) * NUM_MONTHS + hour].x

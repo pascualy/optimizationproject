@@ -5,3 +5,4 @@ offgridoptimizer/__pycache__/
 .ipython
 .jupyter-server-log.txt
 .local/
+.jupyter/
