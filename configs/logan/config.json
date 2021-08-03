@@ -57,16 +57,6 @@
       "maintenance_cost": 0,
       "capacity": 50,
       "amortization": 30
-    },
-      {
-      "name": "smallwind",
-      "utility_type": "electricity",
-      "energy_type": "wind",
-      "opening_cost": 1500,
-      "incremental_cost": 1000,
-      "maintenance_cost": 0,
-      "capacity": 10,
-      "amortization": 30
     }
     ]
 }

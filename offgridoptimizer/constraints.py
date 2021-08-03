@@ -33,6 +33,7 @@ class DemandConstraint(Constraint):
                                              p.grid_capacity(month=month, hour=hour)
                 self.constraints.append(m.addConstr(total_electricity_capacity >=
                                                     p.electricity_demand(month=month, hour=hour)))
+
                 # self.constraints.append(m.addConstr(p.grid_capacity(month=month, hour=hour) <=
                 #                                     p.electricity_demand(month=month, hour=hour)))
                 # self.constraints.append(m.addConstr(p.heat_capacity(month=month, hour=hour) +

@@ -11,7 +11,7 @@ from tabulate import tabulate
 import gurobipy as gp
 
 GP_ENV = gp.Env(empty=True)
-GP_ENV.setParam('LogToConsole', 0)
+# GP_ENV.setParam('LogToConsole', 0)
 GP_ENV.start()
 
 MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
@@ -142,6 +142,12 @@ class Project:
     #####################
 
     def set_objective(self):
+        # times = []
+        # for month in MONTHS:
+        #     for hour in range(0,24):
+        #         times.append((month, hour))
+        # total_stored = sum(-self.electricity_stored(month=m, hour=h) for m, h in times)
+
         return self.model.setObjective(self.total_opening_cost() +
                                        self.total_maintenance_cost() +
                                        self.total_incremental_cost() +

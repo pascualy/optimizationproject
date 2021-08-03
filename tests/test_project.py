@@ -29,7 +29,8 @@ def test_project():
                    project.grid_capacity(m, h, True),
                    project.electricity_demand(m, h),
                   sum(project.electricity_stored(x,y,True) for x, y in times),
-                  sum(project.storage_consumed(x,y,True) for x, y in times))]
+                  sum(project.storage_consumed(x,y,True) for x, y in times),
+                   sum(project.electricity_stored(x,y,True) for x, y in times) - sum(project.storage_consumed(x,y,True) for x, y in times))]
             times.append((m,h))
     # ((1, 7), 0.0, 0.0, 3525.154838709677, 0.0, 10, 0.0, 0.0)
     for a in z:
