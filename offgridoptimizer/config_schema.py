@@ -4,27 +4,10 @@ from jsonschema import validate, ValidationError
 from pathlib import Path
 
 schema = {
-    "required": ["location", "demand", "budget", "grid", "products"],
+    "required": ["location", "budget", "products"],
     "properties": {
         "location": {
             "type": "string"
-        },
-        "demand": {
-            "required": ["electricity_demand", "heat_demand"],
-            "properties": {
-                "electricity_demand": {
-                    "type": "array",
-                    "items": {
-                        "type": "array"
-                    }
-                },
-                "heat_demand": {
-                    "type": "array",
-                    "items": {
-                        "type": "array"
-                    }
-                }
-            }
         },
         "budget": {
             "required": ["initial", "monthly"],
@@ -35,14 +18,6 @@ schema = {
                 "monthly": {
                     "type": "number"
                 }
-            }
-        },
-        "grid": {
-            "required": ["grid_cost_kwh"],
-            "properties": {
-                "grid_cost_kwh": {
-                    "type": "number"
-                },
             }
         },
         "products": {

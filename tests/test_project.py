@@ -6,31 +6,36 @@ from offgridoptimizer import Project, Grid, load_and_validate
 def test_project():
     config = load_and_validate('../configs/logan/config.json')
 
-    grid_config = config['grid']
     budget = config['budget']
-    demand = config['demand']
     project = Project(product_list=config['products'],
-                      grid_cost_kwh=grid_config['grid_cost_kwh'],
+
                       initial_budget=budget['initial'],
                       monthly_budget=budget['monthly'],
-                      monthly_electricity_demand=demand['electricity_demand'],
-                      monthly_heat_demand=demand['heat_demand'],
-                      location=config['location'])
+                      location=config['location'],
+                      allow_grid=config['allow_grid'])
     project.optimize()
     project.print_results()
 
+    print(f'GC: {project.grid.grid_installed.x} {config["allow_grid"]}')
     z = []
     times = []
     for m in range(1, 13):
         for h in range(0, 24):
-            z += [((m, h), project.electricity_stored(m, h, True),
-                   project.storage_consumed(m, h, True),
-                   project.electricity_capacity(m, h, True),
-                   project.grid_capacity(m, h, True),
-                   project.electricity_demand(m, h),
-                  sum(project.electricity_stored(x,y,True) for x, y in times),
-                  sum(project.storage_consumed(x,y,True) for x, y in times),
-                   sum(project.electricity_stored(x,y,True) for x, y in times) - sum(project.storage_consumed(x,y,True) for x, y in times))]
+            z += [((m, h),
+                   round(project.energy_stored(m, h, True)),
+                   round(project.grid_capacity(m, h, True)),
+                   round(project.storage_sold(m,h, True)),
+                   ' ',
+                   round(project.storage_consumed(m, h, True)),
+                   round(project.electricity_capacity(m, h, True)),
+                   ' ',
+                   round(project.electricity_demand(m, h)),
+                   ' ',
+                   round(sum(project.energy_stored(x, y, True) for x, y in times)),
+                   round(sum(project.storage_consumed(x,y,True) for x, y in times)),
+                   round(sum(project.storage_sold(x, y, True) for x, y in times)),
+                   ' ',
+                   round(sum(project.energy_stored(x, y, True) for x, y in times) - sum(project.storage_consumed(x, y, True) for x, y in times) - sum(project.storage_sold(x, y, True) for x, y in times)))]
             times.append((m,h))
     # ((1, 7), 0.0, 0.0, 3525.154838709677, 0.0, 10, 0.0, 0.0)
     for a in z:

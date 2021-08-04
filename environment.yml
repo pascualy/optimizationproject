@@ -1,11 +1,15 @@
 name: offgridoptimizer
 channels:
   - conda-forge
+  - gurobi
 dependencies:
   - ipysheet=0.4.4
   - pscript
   - pandas
   - bqplot
+  - plotly
+  - gurobi
   - pip
   - pip:
       - -e .
+      - -r requirements.txt

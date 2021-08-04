@@ -67,32 +67,32 @@ class ProductSheet(Sheet):
         self.sheet.rows += 1
 
 
-class DemandSheet(Sheet):
-    def __init__(self):
-        super().__init__(rows=3, columns=13)
-        with hold_cells():
-            self.demand_types = column(0, ['', 'monthly_electricity_demand', 'monthly_heat_demand'], font_weight='bold')
-            month_strs = [date(1900, month, month).strftime('%B') for month in range(1, 13)]
-            self.demand_header = row(0, month_strs, column_start=1, font_weight='bold')
-            self.demand_elec = row(1, ['' for _ in range(12)], column_start=1)
-            self.demand_heat = row(2, ['' for _ in range(12)], column_start=1)
-
-    def update(self, elec_demand, heat_demand):
-        self.set_sheet()
-        with hold_cells():
-            self.demand_elec.value = elec_demand
-            self.demand_heat.value = heat_demand
+# class DemandSheet(Sheet):
+#     def __init__(self):
+#         super().__init__(rows=3, columns=13)
+#         with hold_cells():
+#             self.demand_types = column(0, ['', 'monthly_electricity_demand', 'monthly_heat_demand'], font_weight='bold')
+#             month_strs = [date(1900, month, month).strftime('%B') for month in range(1, 13)]
+#             self.demand_header = row(0, month_strs, column_start=1, font_weight='bold')
+#             self.demand_elec = row(1, ['' for _ in range(12)], column_start=1)
+#             self.demand_heat = row(2, ['' for _ in range(12)], column_start=1)
+#
+#     def update(self, elec_demand, heat_demand):
+#         self.set_sheet()
+#         with hold_cells():
+#             self.demand_elec.value = elec_demand
+#             self.demand_heat.value = heat_demand
 
 
 class CostSheet(Sheet):
     def __init__(self):
-        super().__init__(rows=6, columns=2)
+        super().__init__(rows=8, columns=2)
         with hold_cells():
             self.cost_header = column(0, ["Total Opening Cost", "Total Maintenance Cost",
-                                          "Total Incremental Cost", "Total Grid Cost"],
+                                          "Total Incremental Cost", "Total Grid Cost", "Total Revenue", "Total Cost"],
                                       row_start=1, font_weight='bold')
             self.cost_header_dollars = cell(0, 1, "Dollar ($)", font_weight='bold')
-            self.cost_values = column(1, ["", "", "", ""], row_start=1)
+            self.cost_values = column(1, ["", "", "", "", "", ""], row_start=1)
 
     def update(self, costs):
         self.cost_values.value = [v for _, v in costs]
@@ -132,18 +132,18 @@ def interface_box(items):
     return Box(items, layout=default_layout())
 
 
-class GridSheet(Sheet):
-    def __init__(self):
-        super().__init__(rows=2, columns=3)
-        with hold_cells():
-            self.header = row(0, ['', 'grid_cost_kwh'], font_weight='bold')
-            self.header_dollars = cell(1, 0, 'Dollars ($)', font_weight='bold')
-            self.data = row(1, [''], column_start=1)
-
-    def update(self, grid_cost_kwh):
-        self.set_sheet()
-        with hold_cells():
-            self.data.value = [grid_cost_kwh]
+# class GridSheet(Sheet):
+#     def __init__(self):
+#         super().__init__(rows=2, columns=3)
+#         with hold_cells():
+#             self.header = row(0, ['', 'grid_cost_kwh'], font_weight='bold')
+#             self.header_dollars = cell(1, 0, 'Dollars ($)', font_weight='bold')
+#             self.data = row(1, [''], column_start=1)
+#
+#     def update(self, grid_cost_kwh):
+#         self.set_sheet()
+#         with hold_cells():
+#             self.data.value = [grid_cost_kwh]
 
 
 class OffGridOptimizer:
@@ -153,8 +153,8 @@ class OffGridOptimizer:
         # Sheets for Input Interface
         self.products_sheet = ProductSheet()
         self.budget_sheet = BudgetSheet()
-        self.demand_sheet = DemandSheet()
-        self.grid_sheet = GridSheet()
+        # self.demand_sheet = DemandSheet()
+        # self.grid_sheet = GridSheet()
 
         # Sheets for Output Interface
         self.cost_sheet = CostSheet()
@@ -176,7 +176,7 @@ class OffGridOptimizer:
                                                  tooltip='Click me',
                                                  icon='check')
         self.btn_default_config.on_click(self.load_sheets)
-        self.btn_upload_config = widgets.FileUpload(accept='csv', multiple=False)
+        # self.btn_upload_config = widgets.FileUpload(accept='csv', multiple=False)
 
         self.btn_optimize = widgets.Button(description='Optimize!',
                                            disabled=False,
@@ -192,9 +192,8 @@ class OffGridOptimizer:
             header("Off-Grid Optimizer"),
 
             self.location_dropdown,
-            self.btn_default_config, self.btn_upload_config,
-            header("Demand"), self.demand_sheet.sheet,
-            widgets.HBox([widgets.VBox([header("Budget"), self.budget_sheet.sheet], layout=default_layout(border=None)), widgets.VBox([header("Grid"), self.grid_sheet.sheet], layout=default_layout(border=None))]),
+            self.btn_default_config,
+            widgets.HBox([widgets.VBox([header("Budget"), self.budget_sheet.sheet], layout=default_layout(border=None))]),
             header("Products"), widgets.VBox([self.products_sheet.sheet, self.products_sheet.add_product_row_button]),
             widgets.HBox([self.btn_optimize, self.error_text])
         ]
@@ -220,14 +219,13 @@ class OffGridOptimizer:
 
         self.products_sheet.update(products=products)
         self.budget_sheet.update(initial=project.initial_budget, monthly=project.monthly_budget)
-        self.demand_sheet.update(elec_demand=[project.monthly_electricity_demand[month] for month in range(1, 13)],
-                                 heat_demand=[project.monthly_heat_demand[month] for month in range(1, 13)])
-        self.grid_sheet.update(grid_cost_kwh=self.project.grid.grid_cost_kwh)
+        # self.demand_sheet.update(elec_demand=[project.monthly_electricity_demand[month] for month in range(1, 13)],
+        #                          heat_demand=[project.monthly_heat_demand[month] for month in range(1, 13)])
+        # self.grid_sheet.update(grid_cost_kwh=self.project.grid.grid_cost_kwh)
 
     def sheets_to_config(self):
         headers = Product.headers()
         initial, monthly = self.budget_sheet.data.value
-        grid_cost_kwh, = self.grid_sheet.data.value
         transforms = {
             "opening_cost": try_cast_float,
             "incremental_cost": try_cast_float,
@@ -236,17 +234,11 @@ class OffGridOptimizer:
             "capacity": try_cast_float
         }
         return {
+            "allow_grid": False,
             "location": self.location_dropdown.value,
-            "demand": {
-                "electricity_demand": [list(map(float, month)) for month in self.demand_sheet.demand_elec.value],
-                "heat_demand": [list(map(float, month)) for month in self.demand_sheet.demand_elec.value]
-            },
             "budget": {
                 "initial": float(initial),
                 "monthly": float(monthly)
-            },
-            "grid": {
-                "grid_cost_kwh": float(grid_cost_kwh)
             },
             "products": [{k: (v if k not in transforms else transforms[k](v))
                           for k, v in zip(headers, product.value)} for product in self.products_sheet.rows]

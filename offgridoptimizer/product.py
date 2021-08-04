@@ -79,6 +79,7 @@ class StorageProduct(Product):
                          maintenance_cost, capacity, amortization)
         self.b = None  # Excess energy generated per hour
         self.sc = None  # Energy consumed from battery per hour
+        self.ss = None
 
     def init_dvs(self, model):
         super().init_dvs(model)
@@ -91,5 +92,5 @@ class StorageProduct(Product):
     def storage_consumed(self, month, hour, concretize=False):
         return self.sc[(month - 1) * NUM_MONTHS + hour] if not concretize else self.sc[(month - 1) * NUM_MONTHS + hour].x
 
-    def electricity_stored(self, month, hour, concretize=False):
+    def energy_stored(self, month, hour, concretize=False):
         return self.b[(month - 1) * NUM_MONTHS + hour] if not concretize else self.b[(month - 1) * NUM_MONTHS + hour].x
