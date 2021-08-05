@@ -86,7 +86,6 @@ class ProductConstraint(Constraint):
                 total_sold = sum(proj.storage_sold(month=m, hour=h) for m, h in times)
 
                 existing_storage = total_stored - total_consumed - total_sold
-                # existing_storage = total_stored - total_consumed
 
                 M = 2**32
                 model.addConstr(-(1 - proj.storage_installed) * M <= existing_storage)
@@ -109,6 +108,13 @@ class ProductConstraint(Constraint):
                                 self.project.grid_capacity(month, hour) -
                                 self.project.electricity_demand(month, hour) -
                                 self.project.storage_sold(month, hour))
+
+                model.addConstr(
+                    self.project.storage_consumed(month, hour) <=
+                    self.project.grid_capacity(month, hour) +
+                    existing_storage +
+                    self.project.electricity_capacity(month, hour)
+                )
 
             # model.addConstr(self.project.energy_stored(month, hour) <=
             #                 self.project.electricity_capacity(month, hour) +
