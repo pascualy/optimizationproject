@@ -41,8 +41,9 @@ class Capacity:
     @classmethod
     def from_location(cls, location):
         project_root = pathlib.Path(__file__).parent.parent
-        solar_capacity_path = project_root / 'configs' / 'capacity_data' / f'ninja_pv_{location}.csv'
-        wind_capacity_path = project_root / 'configs' / 'capacity_data' / f'ninja_wind_{location}.csv'
+        tlocation = location.replace(",", "_").lower()
+        solar_capacity_path = project_root / 'data' / 'capacity_data' / f'ninja_pv_{tlocation}.csv'
+        wind_capacity_path = project_root / 'data' / 'capacity_data' / f'ninja_wind_{tlocation}.csv'
         return Capacity.data_from_csv(solar_capacity_path=solar_capacity_path, wind_capacity_path=wind_capacity_path)
 
     def lookup(self, month, hour, energy_type):

@@ -4,7 +4,7 @@ import json
 from offgridoptimizer import Project, Grid, load_and_validate
 
 def test_project():
-    config = load_and_validate('../configs/logan/config.json')
+    config = load_and_validate('../configs/logan/logan.json')
 
     budget = config['budget']
     project = Project(product_list=config['products'],

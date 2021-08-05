@@ -7,7 +7,7 @@ NUM_HOURS = 24
 
 
 def convert_time(item):
-    return datetime.strptime(item['time'], "%Y-%m-%d %H:%M")
+    return datetime.strptime(item['local_time'], "%Y-%m-%d %H:%M")
 
 
 class Grid:
@@ -57,5 +57,6 @@ class Grid:
     @classmethod
     def from_location(cls, location, allow_grid, model=None):
         project_root = pathlib.Path(__file__).parent.parent
-        grid_path = project_root / 'configs' / 'grid_data' / f'grid_{location}.csv'
+        tlocation = location.replace(",", "_").lower()
+        grid_path = project_root / 'data' / 'grid_data' / f'grid_{tlocation}.csv'
         return Grid.data_from_csv(grid_path=grid_path, allow_grid=allow_grid, model=model)

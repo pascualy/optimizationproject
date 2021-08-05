@@ -108,6 +108,13 @@ def validate_config(config):
 
 
 def get_location_options():
-    capacity_data = Path(__file__).parent.parent / 'configs' / 'capacity_data'
-    return list(set([' '.join([word.capitalize() for word in path.stem.split('_')[2:]]) for path in capacity_data.glob('./*')]))
+    capacity_data = Path(__file__).parent.parent / 'data' / 'capacity_data'
+    return list(set([','.join([word.capitalize() for word in path.stem.split('_')[2:-1]] +
+                              [word.upper() for word in path.stem.split('_')[-1:]]
+                              ) for path in capacity_data.glob('./*')]))
+
+def get_config_options():
+    capacity_data = Path(__file__).parent.parent / 'configs'
+    return list(set([' '.join([word.capitalize() for word in path.stem.split('_')]
+                              ) for path in capacity_data.glob('./*')]))
 

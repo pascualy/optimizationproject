@@ -5,7 +5,7 @@ from datetime import datetime
 
 
 def convert_time(item):
-    return datetime.strptime(item['time'], "%Y-%m-%d %H:%M")
+    return datetime.strptime(item['local_time'], "%m-%d-%Y %H:%M")
 
 
 class Demand:
@@ -22,6 +22,7 @@ class Demand:
 
     @classmethod
     def from_location(cls, location):
+        tlocation = location.replace(",", "_").lower()
         project_root = pathlib.Path(__file__).parent.parent
-        demand_path = project_root / 'configs' / 'demand_data' / f'demand_{location}.csv'
+        demand_path = project_root / 'data' / 'demand_data' / f'demand_{tlocation}.csv'
         return Demand.data_from_csv(demand_path=demand_path)
