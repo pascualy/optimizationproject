@@ -66,6 +66,7 @@ class ProductTable:
 
     def update(self, products):
         self.table.children = (self.table.children[0],)
+        self.rows = []
         for product in products:
             row = product.parameters()
             self.add_row(None, product=ProductRow.filled(*row))
@@ -123,6 +124,10 @@ def header(text):
     return HTML(f"<h2>{text}</h2>", layout=Layout(height='auto'))
 
 
+def text(text):
+    return HTML(f"{text}", layout=Layout(height='auto'))
+
+
 def interface_box(items):
     return Box(items, layout=default_layout())
 
@@ -148,7 +153,10 @@ class OffGridOptimizer:
             description='Configuration:',
             disabled=False,
         )
-
+        self.allow_grid_check = widgets.Checkbox(value=True,
+                                                 description='Allow Grid',
+                                                 disabled=False,
+                                                 indent=False)
         # Buttons
         self.btn_default_config = widgets.Button(description='Load Default',
                                                  disabled=False,
@@ -173,24 +181,29 @@ class OffGridOptimizer:
         self.initial_budget = widgets.FloatText(layout={'width': 'max-content'}, description='initial_budget: ')
 
         self.input_items = [
-            header("Off-Grid Optimizer"),
+            header("Parameters"),
             self.location_dropdown,
             self.configuration_dropdown,
+            self.allow_grid_check,
             self.btn_default_config,
             widgets.HBox([widgets.VBox([header("Budget"),
                                         self.monthly_budget,
                                         self.initial_budget], layout=default_layout(border=None))]),
-
+            header("Products"),
             self.product_table.table,
             widgets.HBox([self.btn_optimize, self.error_text])
         ]
-        self.input = interface_box(self.input_items)
+        self.input = interface_box([header("Off-Grid Optimizer"), interface_box(self.input_items)])
 
         # Output Interface
         self.output_items = [
             HTML("<h2>Results</h2>", layout=Layout(height='auto')),
-            self.selected_product_table.table
+            header("Selected Products"),
+            self.selected_product_table.table,
+            header("Totals"),
+            widgets.HBox([])
         ]
+
         self.output = interface_box(self.output_items)
 
         # Combined Interface
@@ -199,13 +212,15 @@ class OffGridOptimizer:
         self.project = None
 
     def load_sheets(self, btn):
-        self.project = Project.project_from_config_path(self.default_config_path)
+        file_name = self.configuration_dropdown.value.replace(' ', '_').lower()
+        config_path = f'./configs/{file_name}.json'
+        self.project = Project.project_from_config_path(config_path)
         project = self.project
         products = project.products
 
         self.product_table.update(products=products)
-        self.initial_budget.value = self.initial_budget.value
-        self.monthly_budget.value = self.monthly_budget.value
+        self.initial_budget.value = self.project.initial_budget
+        self.monthly_budget.value = self.project.monthly_budget
 
     def sheets_to_config(self):
         headers = Product.headers()
@@ -246,8 +261,12 @@ class OffGridOptimizer:
 
         self.project = Project.project_from_config(config)
         self.project.optimize()
-
+        labels, costs = zip(*self.project.costs())
+        labels = [text(value) for value in labels]
+        costs = widgets.VBox([widgets.FloatText(layout={'width': 'max-content'}, value=value) for value in costs])
+        self.output.children = self.output.children[:-1] + tuple([widgets.HBox([widgets.VBox(labels), costs])])
         self.selected_product_table.update(self.project.selected_products())
+        print([id(p) for p in self.project.selected_products()])
 
     def set_sheet(self, current_sheet):
         easy._last_sheet = current_sheet

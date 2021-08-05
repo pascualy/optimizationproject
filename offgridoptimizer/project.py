@@ -13,7 +13,7 @@ from tabulate import tabulate
 import gurobipy as gp
 
 GP_ENV = gp.Env(empty=True)
-# GP_ENV.setParam('LogToConsole', 0)
+GP_ENV.setParam('LogToConsole', 0)
 GP_ENV.start()
 
 MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
@@ -191,26 +191,13 @@ class Project:
     #####################
 
     def set_objective(self):
-        # times = []
-        # for month in MONTHS:
-        #     for hour in range(0,24):
-        #         times.append((month, hour))
-        # total_stored = sum(-self.electricity_stored(month=m, hour=h) for m, h in times)
-
-        # when grid is not installed grid_installed == 0
-        # this causes total_revenue to be ADDED to the total cost, minimization caused no energy to be stored
-        # return self.model.setObjective(self.total_opening_cost() +
-        #                                self.total_maintenance_cost() +
-        #                                self.total_incremental_cost() +
-        #                                self.grid.grid_installed * -self.total_revenue() +
-        #                                (1 - self.grid.grid_installed) * self.total_revenue() +
-        #                                self.grid.artificial_total_grid_cost(), gp.GRB.MINIMIZE)
         return self.model.setObjective(self.total_opening_cost() +
                                        self.total_maintenance_cost() +
                                        self.total_incremental_cost() +
                                        self.grid.grid_installed * -self.total_revenue() +
                                        (1 - self.grid.grid_installed) * self.total_revenue() +
                                        self.grid.artificial_total_grid_cost(), gp.GRB.MINIMIZE)
+
     def optimize(self):
         self.model.optimize()
 
@@ -234,11 +221,15 @@ class Project:
         tgc = self.grid.actual_total_grid_cost(concretize=True)
         tr = self.total_revenue(concretize=True)
         return (("Total Opening Cost", toc),
-         ("Total Maintenance Cost", tmc),
-         ("Total Incremental Cost", tic),
-         ("Total Grid Cost", tgc),
-         ("Total Revenue", tr),
-         ("Total Cost", toc + tmc + tic + tgc - tr))
+             ("Total Maintenance Cost", tmc),
+             ("Total Incremental Cost", tic),
+             ("Total Grid Cost", tgc),
+             ("Total Revenue", tr),
+             ("Total Cost", toc + tmc + tic + tgc - tr))
+
+    def cost_labels(self):
+        return ("Total Opening Cost", "Total Maintenance Cost",
+                "Total Incremental Cost", "Total Grid Cost", "Total Revenue", "Total Cost")
 
     def selected_products(self):
         return [(p.name, p.y.x) for p in self.products] + \
