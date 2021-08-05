@@ -6,3 +6,7 @@ offgridoptimizer/__pycache__/
 .jupyter-server-log.txt
 .local/
 .jupyter/
+.DS_Store
+.cache/
+.pki/
+gurobi.lic

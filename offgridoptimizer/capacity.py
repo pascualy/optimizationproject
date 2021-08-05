@@ -15,31 +15,41 @@ class Capacity:
 
     @classmethod
     def data_from_csv(cls, solar_capacity_path, wind_capacity_path):
+        def process(path):
+            with open(path) as fp:
+                table = csv.DictReader(row for row in fp if not row.startswith('#'))
+                data = [{"time": convert_time(row), "efficiency": float(row['electricity'])} for row in table]
 
-        with open(solar_capacity_path) as fp:
-            table = csv.DictReader(row for row in fp if not row.startswith('#'))
-            solar_capacity = [{"time": convert_time(row), "efficiency": float(row['electricity'])} for row in table]
+            avg_data = {}
+            for d in data:
+                idx = (d['time'].month, d['time'].hour)
+                if idx not in avg_data:
+                    avg_data[idx] = []
 
-        with open(wind_capacity_path) as fp:
-            table = csv.DictReader(row for row in fp if not row.startswith('#'))
-            wind_capacity = [{"time": convert_time(row), "efficiency": float(row['electricity'])} for row in table]
+                avg_data[idx].append(d['efficiency'])
+
+            for k, v in avg_data.items():
+                avg_data[k] = sum(v) / len(v)
+
+            return avg_data
+
+        solar_capacity = process(solar_capacity_path)
+        wind_capacity = process(wind_capacity_path)
 
         return Capacity(hourly_solar_capacity=solar_capacity, hourly_wind_capacity=wind_capacity)
 
     @classmethod
     def from_location(cls, location):
         project_root = pathlib.Path(__file__).parent.parent
-        solar_capacity_path = project_root / 'configs' / 'capacity_data' / f'ninja_pv_{location}.csv'
-        wind_capacity_path = project_root / 'configs' / 'capacity_data' / f'ninja_wind_{location}.csv'
+        tlocation = location.replace(",", "_").lower()
+        solar_capacity_path = project_root / 'data' / 'capacity_data' / f'ninja_pv_{tlocation}.csv'
+        wind_capacity_path = project_root / 'data' / 'capacity_data' / f'ninja_wind_{tlocation}.csv'
         return Capacity.data_from_csv(solar_capacity_path=solar_capacity_path, wind_capacity_path=wind_capacity_path)
 
     def lookup(self, month, hour, energy_type):
         if energy_type == 'wind':
-            data = self.hourly_wind_capacity
+            return self.hourly_wind_capacity[(month, hour)]
         elif energy_type == 'solar':
-            data = self.hourly_solar_capacity
+            return self.hourly_solar_capacity[(month, hour)]
         else:
             assert False, "Only energy types available are wind and solar"
-
-        items = [item for item in data if item['time'].month == month and item['time'].hour == hour]
-        return sum(item['efficiency'] for item in items) / len(items)

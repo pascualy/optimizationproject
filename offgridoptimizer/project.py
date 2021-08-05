@@ -5,6 +5,8 @@ from . import Product, Grid
 from offgridoptimizer.constraints import DemandConstraint, ProductConstraint, BudgetConstraint
 from offgridoptimizer.config_schema import load_and_validate, validate_config
 from offgridoptimizer.capacity import Capacity
+from offgridoptimizer.demand import Demand
+
 
 from tabulate import tabulate
 
@@ -22,14 +24,15 @@ def list2dict(l):
 
 
 class Project:
-    def __init__(self, product_list, grid_cost_kwh, initial_budget,
-                 monthly_budget, monthly_electricity_demand, monthly_heat_demand, location):
-        self.monthly_electricity_demand = list2dict(monthly_electricity_demand)
-        self.monthly_heat_demand = list2dict(monthly_heat_demand)
+    def __init__(self, product_list, initial_budget,
+                 monthly_budget, location, allow_grid):
+        self.demand = Demand.from_location(location)
         self.efficiency = Capacity.from_location(location)
 
         self.model = gp.Model('Project', env=GP_ENV)
-        self.grid = Grid(grid_cost_kwh, model=self.model)
+        self.ss = [self.model.addVar() for _ in range(12 * 24)]  # Energy sold
+        self.storage_installed = self.model.addVar(vtype=gp.GRB.BINARY)
+        self.grid = Grid.from_location(location, allow_grid, model=self.model)
         self.products = Product.create_products(product_list, model=self.model)
         self.product_constraint = ProductConstraint(self)
 
@@ -56,6 +59,10 @@ class Project:
     def total_incremental_cost(self, concretize=False):
         return sum((product.y if not concretize else product.y.x) * product.ic for product in self.products)
 
+    def total_revenue(self, concretize=False):
+        return sum([self.grid.hourly_grid_sale[month, hour] * self.storage_sold(month, hour, concretize)
+             for month in MONTHS for hour in range(24)])
+
     def capital_costs(self, concretize=False):
         return sum(product.oc * (product.x if not concretize else product.x.x) +
                    product.ic * (product.y if not concretize else product.y.x) for product in self.products)
@@ -68,13 +75,55 @@ class Project:
     ####################
     # Project Capacity #
     ####################
-    def electricity_stored(self, month, hour, concretize=False):
-        return sum(product.electricity_stored(month=month, hour=hour, concretize=concretize)
+    @property
+    def hourly_capacity(self):
+        z = {}
+        for m in range(1, 13):
+            for h in range(0, 24):
+                z[(m, h)] = self.electricity_capacity(m, h, True)
+
+        return z
+
+    @property
+    def hourly_storage_level(self):
+        z = {}
+        times = []
+        for m in range(1, 13):
+            for h in range(0, 24):
+                z[(m, h)] = sum(self.energy_stored(x, y, True) for x, y in times) - \
+                            sum(self.storage_consumed(x, y, True) for x, y in times)
+                times.append((m, h))
+
+        return z
+
+    @property
+    def hourly_grid_usage(self):
+        z = {}
+        for m in range(1, 13):
+            for h in range(0, 24):
+                z[(m, h)] = self.grid_capacity(m, h, True)
+
+        return z
+
+    @property
+    def hourly_energy_sold(self):
+        z = {}
+        for m in range(1, 13):
+            for h in range(0, 24):
+                z[(m, h)] = self.storage_sold(m, h, True)
+
+        return z
+
+    def energy_stored(self, month, hour, concretize=False):
+        return sum(product.energy_stored(month=month, hour=hour, concretize=concretize)
                    for product in self.products if product.et == Product.STORAGE)
 
     def storage_consumed(self, month, hour, concretize=False):
         return sum(product.storage_consumed(month=month, hour=hour, concretize=concretize)
                    for product in self.products if product.et == Product.STORAGE)
+
+    def storage_sold(self, month, hour, concretize=False):
+        return self.ss[(month - 1) * 12 + hour] if not concretize else self.ss[(month - 1) * 12 + hour].x
 
     # def storage_capacity(self, month, hour, concretize=False):
     #     return sum(product.capacity(month=month, hour=hour, concretize=concretize)
@@ -99,7 +148,7 @@ class Project:
                    for product in self.products if product.ut == utilty_type)
 
     def electricity_demand(self, month, hour):
-        return self.monthly_electricity_demand[month][hour]
+        return self.demand.hourly_demand[month,hour]
 
     def heat_demand(self, month, hour):
         pass
@@ -148,11 +197,20 @@ class Project:
         #         times.append((month, hour))
         # total_stored = sum(-self.electricity_stored(month=m, hour=h) for m, h in times)
 
+        # when grid is not installed grid_installed == 0
+        # this causes total_revenue to be ADDED to the total cost, minimization caused no energy to be stored
+        # return self.model.setObjective(self.total_opening_cost() +
+        #                                self.total_maintenance_cost() +
+        #                                self.total_incremental_cost() +
+        #                                self.grid.grid_installed * -self.total_revenue() +
+        #                                (1 - self.grid.grid_installed) * self.total_revenue() +
+        #                                self.grid.artificial_total_grid_cost(), gp.GRB.MINIMIZE)
         return self.model.setObjective(self.total_opening_cost() +
                                        self.total_maintenance_cost() +
                                        self.total_incremental_cost() +
+                                       self.grid.grid_installed * -self.total_revenue() +
+                                       (1 - self.grid.grid_installed) * self.total_revenue() +
                                        self.grid.artificial_total_grid_cost(), gp.GRB.MINIMIZE)
-
     def optimize(self):
         self.model.optimize()
 
@@ -170,10 +228,17 @@ class Project:
         print(final_costs)
 
     def costs(self):
-        return (("Total Opening Cost", self.total_opening_cost(concretize=True)),
-         ("Total Maintenance Cost", self.total_maintenance_cost(concretize=True)),
-         ("Total Incremental Cost", self.total_incremental_cost(concretize=True)),
-         ("Total Grid Cost", self.grid.actual_total_grid_cost(concretize=True)))
+        toc = self.total_opening_cost(concretize=True)
+        tmc = self.total_maintenance_cost(concretize=True)
+        tic = self.total_incremental_cost(concretize=True)
+        tgc = self.grid.actual_total_grid_cost(concretize=True)
+        tr = self.total_revenue(concretize=True)
+        return (("Total Opening Cost", toc),
+         ("Total Maintenance Cost", tmc),
+         ("Total Incremental Cost", tic),
+         ("Total Grid Cost", tgc),
+         ("Total Revenue", tr),
+         ("Total Cost", toc + tmc + tic + tgc - tr))
 
     def selected_products(self):
         return [(p.name, p.y.x) for p in self.products] + \
@@ -190,14 +255,33 @@ class Project:
         if validate:
             validate_config(config)
 
-        grid_config = config['grid']
         budget = config['budget']
-        demand = config['demand']
         return Project(product_list=config['products'],
-                       grid_cost_kwh=grid_config['grid_cost_kwh'],
                        initial_budget=budget['initial'],
                        monthly_budget=budget['monthly'],
-                       monthly_electricity_demand=demand['electricity_demand'],
-                       monthly_heat_demand=demand['heat_demand'],
-                       location=config['location'])
+                       location=config['location'],
+                       allow_grid=config['allow_grid'])
+
+    def results_df(self):
+        import pandas as pd
+        from functools import reduce
+
+        def dict2pd(arg):
+            d, col = arg
+            return pd.Series(d).rename_axis(['month', 'hour']).reset_index(name=col)
+
+        data = [(self.demand.hourly_demand, 'demand'),
+                (self.efficiency.hourly_solar_capacity, 'pv_efficiency'),
+                (self.efficiency.hourly_wind_capacity, 'wind_efficiency'),
+                (self.hourly_capacity, 'capacity'),
+                (self.hourly_storage_level, 'storage_level'),
+                (self.hourly_energy_sold, 'energy_sold')]
+
+        tdata = map(dict2pd, data)
+        df = reduce(lambda df1, df2: pd.merge(df1, df2), tdata)
+        df['year'] = 2020
+        df['day'] = 1
+        df['date'] = pd.to_datetime(df[['year', 'month', 'day', 'hour']])
+        return df
+
 

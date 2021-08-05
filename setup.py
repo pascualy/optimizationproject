@@ -5,5 +5,5 @@ setup(
     name="final_project",
     version="1.0",
     packages=find_packages(),
-    install_requires=['gurobipy', 'pytest', 'tabulate']
+    install_requires=['pytest', 'tabulate']
 )

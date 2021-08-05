@@ -4,27 +4,10 @@ from jsonschema import validate, ValidationError
 from pathlib import Path
 
 schema = {
-    "required": ["location", "demand", "budget", "grid", "products"],
+    "required": ["location", "budget", "products"],
     "properties": {
         "location": {
             "type": "string"
-        },
-        "demand": {
-            "required": ["electricity_demand", "heat_demand"],
-            "properties": {
-                "electricity_demand": {
-                    "type": "array",
-                    "items": {
-                        "type": "array"
-                    }
-                },
-                "heat_demand": {
-                    "type": "array",
-                    "items": {
-                        "type": "array"
-                    }
-                }
-            }
         },
         "budget": {
             "required": ["initial", "monthly"],
@@ -35,14 +18,6 @@ schema = {
                 "monthly": {
                     "type": "number"
                 }
-            }
-        },
-        "grid": {
-            "required": ["grid_cost_kwh"],
-            "properties": {
-                "grid_cost_kwh": {
-                    "type": "number"
-                },
             }
         },
         "products": {
@@ -133,6 +108,13 @@ def validate_config(config):
 
 
 def get_location_options():
-    capacity_data = Path(__file__).parent.parent / 'configs' / 'capacity_data'
-    return list(set([' '.join([word.capitalize() for word in path.stem.split('_')[2:]]) for path in capacity_data.glob('./*')]))
+    capacity_data = Path(__file__).parent.parent / 'data' / 'capacity_data'
+    return list(set([','.join([word.capitalize() for word in path.stem.split('_')[2:-1]] +
+                              [word.upper() for word in path.stem.split('_')[-1:]]
+                              ) for path in capacity_data.glob('./*')]))
+
+def get_config_options():
+    capacity_data = Path(__file__).parent.parent / 'configs'
+    return list(set([' '.join([word.capitalize() for word in path.stem.split('_')]
+                              ) for path in capacity_data.glob('./*')]))
 
