@@ -4,6 +4,7 @@ from enum import Enum
 from tabulate import tabulate
 import gurobipy as gp
 
+
 NUM_MONTHS = 12
 NUM_HOURS = 24
 
@@ -38,7 +39,7 @@ class Product:
         self.x = None  # Whether opening cost must be paid
         self.y = None  # How many units of this product to install
 
-    def init_dvs(self, model):
+    def init_dvs(self, model, project=None):
         """
         Initialize this Product's decision variables with a provided Gurobi Model
 
@@ -49,7 +50,7 @@ class Product:
         self.y = model.addVar(vtype=gp.GRB.INTEGER)
 
     @classmethod
-    def create_products(cls, product_list, model=None):
+    def create_products(cls, product_list, model=None, project=None):
         products = []
         for p in product_list:
             p = {EQUIVALENT_KEYS[k] if k in EQUIVALENT_KEYS else k: v for k,v in p.items()}
@@ -59,7 +60,7 @@ class Product:
                 products.append(Product(**p))
 
             if model:
-                products[-1].init_dvs(model)
+                products[-1].init_dvs(project=project, model=model)
 
         return products
 
@@ -81,16 +82,16 @@ class StorageProduct(Product):
         self.sc = None  # Energy consumed from battery per hour
         self.ss = None
 
-    def init_dvs(self, model):
+    def init_dvs(self, model, project=None):
         super().init_dvs(model)
-        self.b = [model.addVar() for _ in range(NUM_MONTHS * NUM_HOURS)]  # how much electricity is stored a particular hour
-        self.sc = [model.addVar() for _ in range(NUM_MONTHS * NUM_HOURS)]  # how much electricity is consumed from storage on a particular hour
+        self.b = {hour: model.addVar() for hour in project.hours}  # how much electricity is stored a particular hour
+        self.sc = {hour: model.addVar() for hour in project.hours}  # how much electricity is consumed from storage on a particular hour
 
-    def capacity(self, month, hour, concretize=False):
-        return self.b[(month - 1) * NUM_MONTHS + hour] if not concretize else self.b[(month - 1) * NUM_MONTHS + hour].x
+    def capacity(self, hour, concretize=False):
+        return self.b[hour] if not concretize else self.b[hour].x
 
-    def storage_consumed(self, month, hour, concretize=False):
-        return self.sc[(month - 1) * NUM_MONTHS + hour] if not concretize else self.sc[(month - 1) * NUM_MONTHS + hour].x
+    def storage_consumed(self, hour, concretize=False):
+        return self.sc[hour] if not concretize else self.sc[hour].x
 
-    def energy_stored(self, month, hour, concretize=False):
-        return self.b[(month - 1) * NUM_MONTHS + hour] if not concretize else self.b[(month - 1) * NUM_MONTHS + hour].x
+    def energy_stored(self, hour, concretize=False):
+        return self.b[hour] if not concretize else self.b[hour].x

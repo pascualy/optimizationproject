@@ -1,4 +1,4 @@
-from offgridoptimizer import Project, Product, validate_config
+from offgridoptimizer import Project, Product, validate_config, one_day_each_month, everyday_one_month
 from offgridoptimizer.config_schema import get_location_options, get_config_options
 from jsonschema import ValidationError
 import copy
@@ -214,7 +214,7 @@ class OffGridOptimizer:
     def load_sheets(self, btn):
         file_name = self.configuration_dropdown.value.replace(' ', '_').lower()
         config_path = f'./configs/{file_name}.json'
-        self.project = Project.project_from_config_path(config_path)
+        self.project = Project.project_from_config_path(config_path, hours=one_day_each_month())
         project = self.project
         products = project.products
 
@@ -259,7 +259,7 @@ class OffGridOptimizer:
         except ValidationError:
             return
 
-        self.project = Project.project_from_config(config)
+        self.project = Project.project_from_config(config, hours=everyday_one_month(1))
         self.project.optimize()
         labels, costs = zip(*self.project.costs())
         labels = [text(value) for value in labels]

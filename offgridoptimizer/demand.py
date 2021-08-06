@@ -3,9 +3,7 @@ import itertools
 import pathlib
 from datetime import datetime
 
-
-def convert_time(item):
-    return datetime.strptime(item['local_time'], "%m-%d-%Y %H:%M")
+from offgridoptimizer import convert_time, hour_of_year
 
 
 class Demand:
@@ -16,7 +14,17 @@ class Demand:
     def data_from_csv(cls, demand_path):
         with open(demand_path) as fp:
             table = csv.DictReader(row for row in fp if not row.startswith('#'))
-            hourly_demand = {(convert_time(row).month, convert_time(row).hour): float(row['demand']) for row in table}
+
+            # for idx, row in enumerate(table):
+            #     val = hour_of_year(convert_time(row, fmt="%m-%d-%Y %H:%M"))
+            #     # assert val == idx or idx == 1416, (val, idx,)
+            #     if val != idx:
+            #         print((idx, val))
+            #       break
+            #
+            # raise ValueError()
+
+            hourly_demand = {hour_of_year(convert_time(row, fmt="%m-%d-%Y %H:%M")): float(row['demand']) for row in table}
 
         return Demand(hourly_demand=hourly_demand)
 

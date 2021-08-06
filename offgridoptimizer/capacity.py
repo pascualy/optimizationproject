@@ -3,9 +3,7 @@ import itertools
 import pathlib
 from datetime import datetime
 
-
-def convert_time(item):
-    return datetime.strptime(item['local_time'], "%Y-%m-%d %H:%M")
+from offgridoptimizer import hour_of_year, convert_time
 
 
 class Capacity:
@@ -18,20 +16,10 @@ class Capacity:
         def process(path):
             with open(path) as fp:
                 table = csv.DictReader(row for row in fp if not row.startswith('#'))
-                data = [{"time": convert_time(row), "efficiency": float(row['electricity'])} for row in table]
+                # data = [{"time": hour_of_year(convert_time(row)), "efficiency": float(row['electricity'])} for row in table]
+                data = {hour_of_year(convert_time(row)): float(row['electricity']) for row in table}
 
-            avg_data = {}
-            for d in data:
-                idx = (d['time'].month, d['time'].hour)
-                if idx not in avg_data:
-                    avg_data[idx] = []
-
-                avg_data[idx].append(d['efficiency'])
-
-            for k, v in avg_data.items():
-                avg_data[k] = sum(v) / len(v)
-
-            return avg_data
+            return data
 
         solar_capacity = process(solar_capacity_path)
         wind_capacity = process(wind_capacity_path)
@@ -46,10 +34,10 @@ class Capacity:
         wind_capacity_path = project_root / 'data' / 'capacity_data' / f'ninja_wind_{tlocation}.csv'
         return Capacity.data_from_csv(solar_capacity_path=solar_capacity_path, wind_capacity_path=wind_capacity_path)
 
-    def lookup(self, month, hour, energy_type):
+    def lookup(self, hour, energy_type):
         if energy_type == 'wind':
-            return self.hourly_wind_capacity[(month, hour)]
+            return self.hourly_wind_capacity[hour]
         elif energy_type == 'solar':
-            return self.hourly_solar_capacity[(month, hour)]
+            return self.hourly_solar_capacity[hour]
         else:
             assert False, "Only energy types available are wind and solar"
