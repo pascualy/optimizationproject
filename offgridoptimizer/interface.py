@@ -273,3 +273,39 @@ class OffGridOptimizer:
 
     def add_row(self, _):
         self.products_sheet.add_row()
+
+    @classmethod
+    def plot_results(cls, df):
+        import plotly.express as px
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+
+        colors = px.colors.qualitative.Plotly
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        fig.add_trace(
+            go.Scatter(x=df['date'], y=df['demand'], mode='lines', line=dict(color=colors[0]), name='Demand (KwH)'),
+            secondary_y=False)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['pv_efficiency'] * 100, mode='lines', line=dict(color=colors[1]),
+                                 name='Solar Efficiency (%)'),
+                      secondary_y=True)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['wind_efficiency'] * 100, mode='lines', line=dict(color=colors[2]),
+                                 name='Wind Efficiency (%)'),
+                      secondary_y=True)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['capacity'], mode='lines', line=dict(color=colors[3]),
+                                 name='Capacity (KwH)'),
+                      secondary_y=False)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['storage_level'], mode='lines', line=dict(color=colors[4]),
+                                 name='Storage Level (KwH)'),
+                      secondary_y=False)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['energy_sold'], mode='lines', line=dict(color=colors[5]),
+                                 name='Energy Sold (KwH)'),
+                      secondary_y=False)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['grid_usage'], mode='lines', line=dict(color=colors[6]),
+                                 name='Grid Usage (KwH)'),
+                      secondary_y=False)
+        fig.update_layout(title_text="Title")
+        fig.update_xaxes(title_text="Time")
+        fig.update_yaxes(title_text="<b>Energy</b> (KwH)", secondary_y=False)
+        fig.update_yaxes(title_text="<b>Efficiency</b> (%)", secondary_y=True)
+
+        fig.show()

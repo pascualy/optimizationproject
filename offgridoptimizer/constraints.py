@@ -2,7 +2,6 @@ from offgridoptimizer import Product
 MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
 
-
 class Constraint:
     def __init__(self, project):
         self.project = project
@@ -45,10 +44,11 @@ class ProductConstraint(Constraint):
         model = proj.model
         # if any units of an energy type are installed, require at least 1 opening cost to be paid
         # (e.g., one large and one small solar panel results in a single solar opening cost)
-        M = 2 ** 32
+        M = 10000
         for product in proj.products:
-            c = model.addConstr(sum(p.x for p in proj.products_by_type(product.et)) * M >= product.y)
-            self.constraints.append(c)
+            c1 = model.addConstr(sum(p.x for p in proj.products_by_type(product.et)) * M >= product.y)
+            c2 = model.addConstr(M >= product.y)
+            self.constraints.extend([c1, c2])
 
         c = model.addConstr(proj.grid.grid_installed * M >= sum(proj.grid_capacity(hour=hour) for hour in self.project.hours))
         self.constraints.append(c)
@@ -71,18 +71,26 @@ class ProductConstraint(Constraint):
         total_storage_capacity = sum(product.ca * product.y for product in proj.products if
                                      product.et == Product.STORAGE)
         times = []
+        stored = []
+        consumed = []
+
         for hour in self.project.hours:
             times.append(hour)
-            total_stored = sum(proj.energy_stored(hour=h) for h in times)
-            total_consumed = sum(proj.storage_consumed(hour=h) for h in times)
-            total_sold = sum(proj.storage_sold(hour=h) for h in times)
+            if hour % 1000 == 0:
+                print(hour)
+            stored.append(proj.energy_stored(hour))
+            consumed.append(proj.storage_consumed(hour))
 
-            existing_storage = total_stored - total_consumed - total_sold
+            total_stored = sum(stored)
+            total_consumed = sum(consumed)
 
-            M = 2**32
-            model.addConstr(-(1 - proj.storage_installed) * M <= existing_storage)
+            existing_storage = total_stored - total_consumed
+            M = 1000000
+
             model.addConstr(existing_storage <= total_storage_capacity)
-            # TODO: This causes the optimization to start with "batteries" full
+            model.addConstr(-(1 - proj.storage_installed) * M <= existing_storage)
+            model.addConstr(self.project.energy_sold(hour) <= self.project.grid.grid_installed * M )
+
             if hour == 0:
                 inital_storage_level = total_storage_capacity * 0
                 model.addConstr(proj.energy_stored(hour=0) == inital_storage_level)
@@ -92,7 +100,7 @@ class ProductConstraint(Constraint):
                                 self.project.storage_consumed(hour) +
                                 self.project.grid_capacity(hour) -
                                 self.project.electricity_demand(hour) -
-                                self.project.storage_sold(hour))
+                                self.project.energy_sold(hour))
             else:
                 # # TODO product.x needs to be 1 if ANY storage has been selected (done). this may be a problem with cost calculation too...
                 model.addConstr(self.project.energy_stored(hour) <=
@@ -100,14 +108,14 @@ class ProductConstraint(Constraint):
                                 self.project.storage_consumed(hour) +
                                 self.project.grid_capacity(hour) -
                                 self.project.electricity_demand(hour) -
-                                self.project.storage_sold(hour))
+                                self.project.energy_sold(hour))
 
             model.addConstr(
                 self.project.storage_consumed(hour) <=
                 self.project.grid_capacity(hour) +
                 existing_storage +
                 self.project.electricity_capacity(hour) -
-                self.project.storage_sold(hour) -
+                self.project.energy_sold(hour) -
                 self.project.electricity_demand(hour)
             )
 

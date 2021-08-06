@@ -11,10 +11,11 @@ NUM_HOURS = 24
 class Grid:
     MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
-    def __init__(self, project, hourly_grid, allow_grid, model=None):
+    def __init__(self, project, hourly_grid, allow_grid, model=None, grid_opening_cost=10000):
         self.project = project
         self.hourly_usage = None
         self.grid_installed = None
+        self.grid_opening_cost = grid_opening_cost
         self.hourly_grid = hourly_grid
         self.hourly_grid_sale = {k: v * 0.001 for k, v in hourly_grid.items()}
         self.artificial_grid_cost_kwh = 200  # TODO: change this to large value
@@ -47,7 +48,7 @@ class Grid:
     def data_from_csv(cls, grid_path, allow_grid, model=None, project=None):
         with open(grid_path) as fp:
             table = csv.DictReader(row for row in fp if not row.startswith('#'))
-            hourly_grid = {hour_of_year(convert_time(row)): float(row['grid_cost']) for row in table}
+            hourly_grid = {hour_of_year(convert_time(row,fmt = "%m-%d-%Y %H:%M")): float(row['grid_cost']) for row in table}
 
         return Grid(hourly_grid=hourly_grid, allow_grid=allow_grid, model=model, project=project)
 

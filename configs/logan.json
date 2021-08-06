@@ -13,27 +13,27 @@
       "opening_cost":  1000,
       "incremental_cost": 100,
       "maintenance_cost": 0,
-      "capacity": 10,
+      "capacity": 2,
       "amortization": 30
     },
     {
       "name": "smallbattery",
       "utility_type": "electricity",
       "energy_type": "storage",
-      "opening_cost": 10000,
+      "opening_cost": 100,
       "incremental_cost": 100,
       "maintenance_cost": 0,
-      "capacity": 50000,
+      "capacity": 2,
       "amortization": 30
     },
           {
       "name": "smallwind",
       "utility_type": "electricity",
       "energy_type": "wind",
-      "opening_cost": 150,
+      "opening_cost": 1500,
       "incremental_cost": 100,
       "maintenance_cost": 0,
-      "capacity": 10,
+      "capacity": 1,
       "amortization": 30
     }
     ]

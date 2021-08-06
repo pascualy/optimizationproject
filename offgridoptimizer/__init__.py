@@ -15,7 +15,8 @@ def date_from_hour(hour):
     return datetime(year=2018, day=1, month=1) + timedelta(hours=hour)
 
 LEAP_DAY_HOUR = 1416
-
+DAYLIGHT_SAVINGS_SPRING = 1634
+SOMETHING_ELSE = 1586
 
 def one_day_each_month():
     hours = []
@@ -35,17 +36,29 @@ def everyday_one_month(month):
     hours = []
     m = datetime(year=2018, day=1, month=month)
     day = 1
-    while m.month == month:
-        try:
-            m = datetime(year=2018, day=day, month=month)
-        except ValueError:
-            break
+    cont = True
+    while m.month == month and cont:
+        for hour in range(24):
+            try:
+                m = datetime(year=2018, day=day, month=month, hour=hour)
+            except ValueError as e:
+                print(e)
+                cont = False
+                break
 
-        hours.append(hour_of_year(m))
+            hours.append(hour_of_year(m))
+        #
+        # if day == 25:
+        #     break
+
         day += 1
+    print(hours)
 
+    hours = list(range(HOURS_IN_YEAR))
     try:
         hours.remove(LEAP_DAY_HOUR)
+        hours.remove(DAYLIGHT_SAVINGS_SPRING)
+        hours.remove(SOMETHING_ELSE)
     except ValueError:
         pass
 

@@ -1,12 +1,12 @@
 import pytest
 import json
 
-from offgridoptimizer import Project, Grid, load_and_validate, one_day_each_month
+from offgridoptimizer import Project, Grid, load_and_validate, one_day_each_month, everyday_one_month
 
 def test_project():
     config = load_and_validate('../configs/logan.json')
 
-    hours = one_day_each_month()
+    hours = everyday_one_month(1)
     assert 1416 not in hours
     budget = config['budget']
     project = Project(product_list=config['products'],
@@ -19,7 +19,8 @@ def test_project():
     print('Optimizing')
     project.optimize()
     project.print_results()
-    project.results_df()
+    df = project.results_df()
+    df.to_pickle('output.pickle')
 
     print(f'GC: {project.grid.grid_installed.x} {config["allow_grid"]}')
     z = []
@@ -28,7 +29,7 @@ def test_project():
         z += [((h),
                round(project.energy_stored(h, True), 4),
                round(project.grid_capacity(h,True), 4),
-               round(project.storage_sold(h,True), 4),
+               round(project.energy_sold(h, True), 4),
                ' ',
                round(project.storage_consumed(h, True), 4),
                round(project.electricity_capacity(h, True), 4),
@@ -37,9 +38,9 @@ def test_project():
                ' ',
                round(sum(project.energy_stored(x, True) for x  in times), 4),
                round(sum(project.storage_consumed(x,True) for x  in times), 4),
-               round(sum(project.storage_sold(x, True) for x in times), 4),
+               round(sum(project.energy_sold(x, True) for x in times), 4),
                ' ',
-               round(sum(project.energy_stored(x, True) for x in times) - sum(project.storage_consumed(x, True) for x in times) - sum(project.storage_sold(x, True) for x in times),4))]
+               round(sum(project.energy_stored(x, True) for x in times) - sum(project.storage_consumed(x, True) for x in times) - sum(project.energy_sold(x, True) for x in times), 4))]
         times.append(h)
     # ((1, 7), 0.0, 0.0, 3525.154838709677, 0.0, 10, 0.0, 0.0)
     for a in z:
