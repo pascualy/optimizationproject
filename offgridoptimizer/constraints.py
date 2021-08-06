@@ -91,36 +91,33 @@ class ProductConstraint(Constraint):
                 model.addConstr(-(1 - proj.storage_installed) * M <= existing_storage)
                 model.addConstr(existing_storage <= total_storage_capacity)
                 # TODO: This causes the optimization to start with "batteries" full
-                # if month == 1 and hour == 0:
-                #     inital_storage_level = total_storage_capacity * 0
-                #     model.addConstr(proj.energy_stored(month=1, hour=0) == inital_storage_level)
-                #     model.addConstr(self.project.energy_stored(month, hour) <=
-                #                     inital_storage_level +
-                #                     self.project.electricity_capacity(month, hour) +
-                #                     self.project.storage_consumed(month, hour) +
-                #                     self.project.grid_capacity(month, hour) -
-                #                     self.project.electricity_demand(month, hour))
-                # else:
+                if month == 1 and hour == 0:
+                    inital_storage_level = total_storage_capacity * .25
+                    model.addConstr(proj.energy_stored(month=1, hour=0) == inital_storage_level)
+                    model.addConstr(self.project.energy_stored(month, hour) <=
+                                    inital_storage_level +
+                                    self.project.electricity_capacity(month, hour) +
+                                    self.project.storage_consumed(month, hour) +
+                                    self.project.grid_capacity(month, hour) -
+                                    self.project.electricity_demand(month, hour) -
+                                    self.project.storage_sold(month, hour))
+                else:
                     # # TODO product.x needs to be 1 if ANY storage has been selected (done). this may be a problem with cost calculation too...
-                model.addConstr(self.project.energy_stored(month, hour) <=
-                                self.project.electricity_capacity(month, hour) +
-                                self.project.storage_consumed(month, hour) +
-                                self.project.grid_capacity(month, hour) -
-                                self.project.electricity_demand(month, hour) -
-                                self.project.storage_sold(month, hour))
+                    model.addConstr(self.project.energy_stored(month, hour) <=
+                                    self.project.electricity_capacity(month, hour) +
+                                    self.project.storage_consumed(month, hour) +
+                                    self.project.grid_capacity(month, hour) -
+                                    self.project.electricity_demand(month, hour) -
+                                    self.project.storage_sold(month, hour))
 
                 model.addConstr(
                     self.project.storage_consumed(month, hour) <=
                     self.project.grid_capacity(month, hour) +
                     existing_storage +
-                    self.project.electricity_capacity(month, hour)
+                    self.project.electricity_capacity(month, hour) -
+                    self.project.storage_sold(month, hour) -
+                    self.project.electricity_demand(month, hour)
                 )
-
-            # model.addConstr(self.project.energy_stored(month, hour) <=
-            #                 self.project.electricity_capacity(month, hour) +
-            #                 self.project.storage_consumed(month, hour) +
-            #                 self.project.grid_capacity(month, hour) -
-            #                 self.project.electricity_demand(month, hour))
 
 
 class BudgetConstraint(Constraint):
