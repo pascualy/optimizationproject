@@ -17,7 +17,7 @@ class Grid:
         self.grid_installed = None
         self.grid_opening_cost = grid_opening_cost
         self.hourly_grid = hourly_grid
-        self.hourly_grid_sale = {k: v * 0.001 for k, v in hourly_grid.items()}
+        self.hourly_grid_sale = {k: v * 1 for k, v in hourly_grid.items()}
         self.artificial_grid_cost_kwh = 200  # TODO: change this to large value
         self.allow_grid = allow_grid
         if model:

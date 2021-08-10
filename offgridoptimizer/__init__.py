@@ -51,10 +51,10 @@ def everyday_one_month(month):
         # if day == 25:
         #     break
 
-        day += 1
-    print(hours)
+        day += 2
 
-    hours = list(range(HOURS_IN_YEAR))
+    hours = list(range(0, HOURS_IN_YEAR, 4))
+    print(hours)
     try:
         hours.remove(LEAP_DAY_HOUR)
         hours.remove(DAYLIGHT_SAVINGS_SPRING)
@@ -64,6 +64,33 @@ def everyday_one_month(month):
 
     return hours
 
+
+def hours_each_month(months):
+    hours = []
+    for month in months:
+        m = datetime(year=2018, day=1, month=month)
+        day = 1
+        cont = True
+        while m.month == month and cont:
+            for hour in range(24):
+                try:
+                    m = datetime(year=2018, day=day, month=month, hour=hour)
+                except ValueError as e:
+                    cont = False
+                    break
+
+                hours.append(hour_of_year(m))
+
+            day += 1
+
+    try:
+        hours.remove(LEAP_DAY_HOUR)
+        hours.remove(DAYLIGHT_SAVINGS_SPRING)
+        hours.remove(SOMETHING_ELSE)
+    except ValueError:
+        pass
+
+    return hours
 
 MONTHS_IN_YEAR = 365
 HOURS_IN_DAY = 24

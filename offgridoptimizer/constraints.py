@@ -131,3 +131,4 @@ class BudgetConstraint(Constraint):
         m = p.model
         self.constraints = [m.addConstr(p.capital_costs() <= p.initial_budget),
                             m.addConstr(p.operational_costs() <= p.monthly_budget)]
+        m.addConstr(p.total_revenue() <= p.grid.actual_total_grid_cost())

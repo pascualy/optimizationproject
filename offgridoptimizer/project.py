@@ -7,7 +7,6 @@ from offgridoptimizer.config_schema import load_and_validate, validate_config
 from offgridoptimizer.capacity import Capacity
 from offgridoptimizer.demand import Demand
 
-
 from tabulate import tabulate
 
 import gurobipy as gp
@@ -67,7 +66,6 @@ class Project:
         product_cost = sum((product.x if not concretize else product.x.x) * product.oc for product in self.products)
         return grid_cost + product_cost
 
-
     def total_maintenance_cost(self, concretize=False):
         return sum((product.y if not concretize else product.y.x) * product.mc for product in self.products)
 
@@ -79,7 +77,10 @@ class Project:
              for hour in self.hours])
 
     def capital_costs(self, concretize=False):
-        return sum(product.oc * (product.x if not concretize else product.x.x) +
+        grid_cost = (self.grid.grid_installed * self.grid.grid_opening_cost) if not concretize \
+            else (self.grid.grid_installed.x * self.grid.grid_opening_cost)
+
+        return grid_cost + sum(product.oc * (product.x if not concretize else product.x.x) +
                    product.ic * (product.y if not concretize else product.y.x) for product in self.products)
 
     def operational_costs(self, concretize=False):
@@ -285,6 +286,23 @@ class Project:
                 (self.hourly_storage_level, 'storage_level'),
                 (self.hourly_energy_sold, 'energy_sold'),
                 (self.hourly_grid_usage, 'grid_usage')]
+
+        tdata = map(dict2pd, data)
+        df = reduce(lambda df1, df2: pd.merge(df1, df2), tdata)
+        df['date'] = pd.Timestamp('2019-01-01') + pd.to_timedelta(df['hour'], unit='H')
+        return df
+
+    def parameters_df(self):
+        import pandas as pd
+        from functools import reduce
+
+        def dict2pd(arg):
+            d, col = arg
+            return pd.Series(d).rename_axis(['hour']).reset_index(name=col)
+
+        data = [(self.demand.hourly_demand, 'demand'),
+                (self.efficiency.hourly_solar_capacity, 'pv_efficiency'),
+                (self.efficiency.hourly_wind_capacity, 'wind_efficiency')]
 
         tdata = map(dict2pd, data)
         df = reduce(lambda df1, df2: pd.merge(df1, df2), tdata)
