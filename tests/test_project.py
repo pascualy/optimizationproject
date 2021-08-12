@@ -1,45 +1,74 @@
 import pytest
 import json
+import pathlib
 
-from offgridoptimizer import Project, Grid, load_and_validate
+from offgridoptimizer import Project, Grid, load_and_validate, one_day_each_month, everyday_one_month, hours_each_month
 
-def test_project():
-    config = load_and_validate('../configs/logan/logan.json')
+MONTHS_IN_YEAR = 365
+HOURS_IN_DAY = 24
+HOURS_IN_YEAR = MONTHS_IN_YEAR * HOURS_IN_DAY
 
+LEAP_DAY_HOUR = 1416
+DAYLIGHT_SAVINGS_SPRING = 1634
+SOMETHING_ELSE = 1586
+
+
+def test_project(config_name, hours):
+
+
+    config = load_and_validate(f'../configs/{config_name}.json')
     budget = config['budget']
     project = Project(product_list=config['products'],
 
                       initial_budget=budget['initial'],
                       monthly_budget=budget['monthly'],
                       location=config['location'],
-                      allow_grid=config['allow_grid'])
+                      allow_grid=True,
+                      hours=hours)
+
+    # model_save_name = 'saved_model.sol'
+    # if pathlib.Path('saved_model.sol').exists():
+    #     project.model.read(model_save_name)
+    #     project.model.update()
+
+    print('Optimizing')
     project.optimize()
     project.print_results()
+    df = project.results_df()
+
+    idx = 0
+    filename = f'{config_name}_{config["location"]}_{idx}.pickle'
+    while pathlib.Path(filename).exists():
+        idx += 1
+        filename = f'{config_name}_{config["location"]}_{idx}.pickle'
+
+    df.to_pickle(filename)
+
+    # project.model.write(model_save_name)
 
     print(f'GC: {project.grid.grid_installed.x} {config["allow_grid"]}')
     z = []
     times = []
-    for m in range(1, 13):
-        for h in range(0, 24):
-            z += [((m, h),
-                   round(project.energy_stored(m, h, True)),
-                   round(project.grid_capacity(m, h, True)),
-                   round(project.storage_sold(m,h, True)),
-                   ' ',
-                   round(project.storage_consumed(m, h, True)),
-                   round(project.electricity_capacity(m, h, True)),
-                   ' ',
-                   round(project.electricity_demand(m, h)),
-                   ' ',
-                   round(sum(project.energy_stored(x, y, True) for x, y in times)),
-                   round(sum(project.storage_consumed(x,y,True) for x, y in times)),
-                   round(sum(project.storage_sold(x, y, True) for x, y in times)),
-                   ' ',
-                   round(sum(project.energy_stored(x, y, True) for x, y in times) - sum(project.storage_consumed(x, y, True) for x, y in times) - sum(project.storage_sold(x, y, True) for x, y in times)))]
-            times.append((m,h))
-    # ((1, 7), 0.0, 0.0, 3525.154838709677, 0.0, 10, 0.0, 0.0)
-    for a in z:
-        print(a)
+    # for h in hours:
+    #     z += [((h),
+    #            round(project.energy_stored(h, True), 4),
+    #            round(project.grid_capacity(h,True), 4),
+    #            round(project.energy_sold(h, True), 4),
+    #            ' ',
+    #            round(project.storage_consumed(h, True), 4),
+    #            round(project.electricity_capacity(h, True), 4),
+    #            ' ',
+    #            round(project.electricity_demand(h), 4),
+    #            ' ',
+    #            round(sum(project.energy_stored(x, True) for x  in times), 4),
+    #            round(sum(project.storage_consumed(x,True) for x  in times), 4),
+    #            round(sum(project.energy_sold(x, True) for x in times), 4),
+    #            ' ',
+    #            round(sum(project.energy_stored(x, True) for x in times) - sum(project.storage_consumed(x, True) for x in times) - sum(project.energy_sold(x, True) for x in times), 4))]
+    #     times.append(h)
+    # # ((1, 7), 0.0, 0.0, 3525.154838709677, 0.0, 10, 0.0, 0.0)
+    # for a in z:
+    #     print(a)
         # if a[0][1] == 16:
         #     break
     # times = []
@@ -49,19 +78,28 @@ def test_project():
     #         total_stored = sum(project.electricity_stored(m, h, True) for m, h in times[:-1])
     #         total_consumed = sum(project.storage_consumed(m, h, True) for m, h in times[:-1])
     #         print((total_stored, total_consumed))
-    x=5
-test_project()
 
 
-# TODO Project class should keep track of constraints and allow updating products/budget/demand
+hours = list(range(0, HOURS_IN_YEAR, 2))
+print(hours)
+try:
+    hours.remove(LEAP_DAY_HOUR)
+    hours.remove(DAYLIGHT_SAVINGS_SPRING)
+    hours.remove(SOMETHING_ELSE)
+except ValueError:
+    pass
 
-(3906.838709677419, 10.0)
-(16726.93548387097, 20.0)
-(37118.32258064516, 30.0)
-(61630.45161290322, 40.0)
-(87508.25806451612, 50.0)
-(87508.25806451612, 60.0)
-(87508.25806451612, 70.0)
-(87508.25806451612, 80.0)
-(87508.25806451612, 90.0)
-(87508.25806451612, 100.0)
+# test_project('logan_low_budget', hours)
+test_project('logan_medium_budget', hours)
+# test_project('logan_lower_budget', hours)
+# test_project('logan_sedona_az', hours)
+# test_project('logan_yakima_wa', hours)
+
+#
+# spring = [3, 4, 5]
+# summer = [6, 7, 8]
+# fall = [9, 10, 11]
+# winter = [12, 1, 2]
+# for idx, season in enumerate([spring, summer, fall, winter]):
+#     print(f'Season {idx}')
+#     test_project('logan_medium_budget', hours_each_month(season))

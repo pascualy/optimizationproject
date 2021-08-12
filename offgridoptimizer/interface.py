@@ -1,5 +1,7 @@
-from offgridoptimizer import Project, Product, validate_config
+from offgridoptimizer import Project, Product, validate_config, one_day_each_month, everyday_one_month, hours_each_month
 from offgridoptimizer.config_schema import get_location_options, get_config_options
+from offgridoptimizer import MONTHS_IN_YEAR, HOURS_IN_DAY, HOURS_IN_YEAR, LEAP_DAY_HOUR, DAYLIGHT_SAVINGS_SPRING, SOMETHING_ELSE
+
 from jsonschema import ValidationError
 import copy
 import ipysheet
@@ -60,12 +62,23 @@ class ProductTable:
     def add_row(self, btn, product=None):
         if product is None:
             product = ProductRow()
+
         self.rows.append(product)
-        self.table.children += (widgets.HBox([self.rows[-1].row[i] for i in range(len(self.headers))],
-                                layout=Layout(width='100%', display='inline-flex', flex_flow='row')),)
+        if len(self.rows) == 1:
+            # widgets.Text(value=h, layout=Layout(width='80%', display='inline-flex', flex_flow='row'))
+            self.table.children += (widgets.HBox([widgets.VBox([HTML(f'<h3>{h}</h3>', layout=Layout(height='auto')),
+                                                                self.rows[-1].row[i]]) for i, h in enumerate(self.headers)],
+                                                 layout=Layout(width='100%', display='inline-flex', flex_flow='row wrap')),)
+        else:
+            print(self.table.children[1])
+            for vbox, cell in zip(self.table.children[1].children, [self.rows[-1].row[i] for i in range(len(self.headers))]):
+                vbox.children += (cell,)
+            # self.table.children += (widgets.HBox([self.rows[-1].row[i] for i in range(len(self.headers))],
+            #                         layout=Layout(width='75%', display='inline-flex', flex_flow='row')),)
 
     def update(self, products):
         self.table.children = (self.table.children[0],)
+        self.rows = []
         for product in products:
             row = product.parameters()
             self.add_row(None, product=ProductRow.filled(*row))
@@ -123,6 +136,10 @@ def header(text):
     return HTML(f"<h2>{text}</h2>", layout=Layout(height='auto'))
 
 
+def text(text):
+    return HTML(f"{text}", layout=Layout(height='auto'))
+
+
 def interface_box(items):
     return Box(items, layout=default_layout())
 
@@ -148,7 +165,10 @@ class OffGridOptimizer:
             description='Configuration:',
             disabled=False,
         )
-
+        self.allow_grid_check = widgets.Checkbox(value=True,
+                                                 description='Allow Grid',
+                                                 disabled=False,
+                                                 indent=False)
         # Buttons
         self.btn_default_config = widgets.Button(description='Load Default',
                                                  disabled=False,
@@ -173,24 +193,29 @@ class OffGridOptimizer:
         self.initial_budget = widgets.FloatText(layout={'width': 'max-content'}, description='initial_budget: ')
 
         self.input_items = [
-            header("Off-Grid Optimizer"),
+            header("Parameters"),
             self.location_dropdown,
             self.configuration_dropdown,
+            self.allow_grid_check,
             self.btn_default_config,
             widgets.HBox([widgets.VBox([header("Budget"),
                                         self.monthly_budget,
                                         self.initial_budget], layout=default_layout(border=None))]),
-
+            header("Products"),
             self.product_table.table,
             widgets.HBox([self.btn_optimize, self.error_text])
         ]
-        self.input = interface_box(self.input_items)
+        self.input = interface_box([header("Off-Grid Optimizer"), interface_box(self.input_items)])
 
         # Output Interface
         self.output_items = [
             HTML("<h2>Results</h2>", layout=Layout(height='auto')),
-            self.selected_product_table.table
+            header("Selected Products"),
+            self.selected_product_table.table,
+            header("Totals"),
+            widgets.HBox([])
         ]
+
         self.output = interface_box(self.output_items)
 
         # Combined Interface
@@ -198,14 +223,20 @@ class OffGridOptimizer:
 
         self.project = None
 
-    def load_sheets(self, btn):
-        self.project = Project.project_from_config_path(self.default_config_path)
+    def load_sheets(self, btn, config=None, hours=None):
+        if config:
+            self.project = Project.project_from_config(config, hours=hours)
+        else:
+            file_name = self.configuration_dropdown.value.replace(' ', '_').lower()
+            config_path = f'./configs/{file_name}.json'
+            self.project = Project.project_from_config_path(config_path, hours=hours_each_month([1]))
+
         project = self.project
         products = project.products
 
         self.product_table.update(products=products)
-        self.initial_budget.value = self.initial_budget.value
-        self.monthly_budget.value = self.monthly_budget.value
+        self.initial_budget.value = self.project.initial_budget
+        self.monthly_budget.value = self.project.monthly_budget
 
     def sheets_to_config(self):
         headers = Product.headers()
@@ -216,7 +247,7 @@ class OffGridOptimizer:
             "amortization": try_cast_float,
             "capacity": try_cast_float
         }
-        return {
+        a = {
             "allow_grid": True,
             "location": self.location_dropdown.value,
             "budget": {
@@ -226,6 +257,8 @@ class OffGridOptimizer:
             "products": [{k: (v.value if k not in transforms else transforms[k](v.value))
                           for k, v in zip(headers, product.row)} for product in self.product_table.rows]
         }
+        print(a)
+        return a
 
     def validate_sheets(self):
         config = self.sheets_to_config()
@@ -243,14 +276,103 @@ class OffGridOptimizer:
             config = self.validate_sheets()
         except ValidationError:
             return
-
-        self.project = Project.project_from_config(config)
+        print(config)
+        self.project = Project.project_from_config(config, hours=hours_each_month([7])[18 * 24:18 * 24 + 128])
         self.project.optimize()
-
+        labels, costs = zip(*self.project.costs())
+        labels = [text(value) for value in labels]
+        costs = widgets.VBox([widgets.FloatText(layout={'width': 'max-content'}, value=value) for value in costs])
+        self.output.children = self.output.children[:-1] + tuple([widgets.HBox([widgets.VBox(labels), costs])])
         self.selected_product_table.update(self.project.selected_products())
+        self.plot_results(self.project.results_df())
 
     def set_sheet(self, current_sheet):
         easy._last_sheet = current_sheet
 
     def add_row(self, _):
         self.products_sheet.add_row()
+
+    @classmethod
+    def plot_results(cls, df, hours=None):
+        import pandas as pd
+        import plotly.express as px
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+
+        colors = px.colors.qualitative.Plotly
+
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        fig.add_trace(go.Scatter(x=df['date'], y=df['demand'], mode='lines', line=dict(color=colors[0]), name='Demand (KwH)'),
+            secondary_y=False)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['pv_efficiency'] * 100, mode='lines', line=dict(color=colors[1]),
+                                 name='Solar Efficiency (%)'),
+                      secondary_y=True)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['wind_efficiency'] * 100, mode='lines', line=dict(color=colors[2]),
+                                 name='Wind Efficiency (%)'),
+                      secondary_y=True)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['capacity'], mode='lines', line=dict(color=colors[3]),
+                                 name='Capacity (KwH)'),
+                      secondary_y=False)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['storage_level'], mode='lines', line=dict(color=colors[4]),
+                                 name='Storage Level (KwH)'),
+                      secondary_y=False)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['energy_sold'], mode='lines', line=dict(color=colors[5]),
+                                 name='Energy Sold (KwH)'),
+                      secondary_y=False)
+        fig.add_trace(go.Scatter(x=df['date'], y=df['grid_usage'], mode='lines', line=dict(color=colors[6]),
+                                 name='Grid Usage (KwH)'),
+                      secondary_y=False)
+
+        if hours:
+            hours = list(range(1, HOURS_IN_YEAR, 4))
+            try:
+                hours.remove(LEAP_DAY_HOUR)
+                hours.remove(DAYLIGHT_SAVINGS_SPRING)
+                hours.remove(SOMETHING_ELSE)
+            except ValueError:
+                pass
+
+            hours = set(list(range(0, HOURS_IN_YEAR))).difference(hours)
+
+            dt_breaks = pd.DataFrame(hours, columns=['chour'])
+            df1 = pd.Timestamp('2019-01-01') + pd.to_timedelta(dt_breaks['chour'], unit='H')
+            fig.update_xaxes(
+                rangebreaks=[dict(values=df1)]  # hide dates with no values
+            )
+
+        fig.update_layout(title_text="Energy System Dynamics")
+        fig.update_xaxes(title_text="Time")
+        fig.update_yaxes(title_text="<b>Energy</b> (KwH)", secondary_y=False)
+        fig.update_yaxes(title_text="<b>Efficiency</b> (%)", secondary_y=True)
+
+        fig.show()
+
+    @classmethod
+    def plot_efficiency(cls, df, location='Asheville,NC'):
+        import plotly.express as px
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        colors = px.colors.qualitative.Plotly
+        fig = make_subplots()
+        fig.add_trace(go.Scatter(x=df['date'], y=df['pv_efficiency'] * 100, mode='lines', line=dict(color=colors[1]),
+                                 name='Solar Efficiency (%)'))
+        fig.add_trace(go.Scatter(x=df['date'], y=df['wind_efficiency'] * 100, mode='lines', line=dict(color=colors[2]),
+                                 name='Wind Efficiency (%)'))
+        fig.update_layout(title_text=f"Hourly Efficiency of Wind Products in {location.replace(',', ', ')}")
+        fig.update_xaxes(title_text="<b>Time</b>")
+        fig.update_yaxes(title_text="<b>Efficiency</b> (%)", secondary_y=False)
+        fig.show()
+
+    @classmethod
+    def plot_demand(cls, df):
+        import plotly.express as px
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        colors = px.colors.qualitative.Plotly
+        fig = make_subplots()
+        fig.add_trace(
+            go.Scatter(x=df['date'], y=df['demand'], mode='lines', line=dict(color=colors[0]), name='Demand (KwH)'))
+        fig.update_layout(title_text="Hourly Demand of Average Home in Asheville, NC")
+        fig.update_xaxes(title_text="Time")
+        fig.update_yaxes(title_text="<b>Energy</b> (KwH)", secondary_y=False)
+        fig.show()

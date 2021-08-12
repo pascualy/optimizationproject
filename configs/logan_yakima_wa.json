@@ -1,0 +1,56 @@
+{
+    "location": "yakima_wa",
+    "budget": {
+        "initial": 60000,
+        "monthly": 1000
+    },
+    "allow_grid": true,
+    "products": [{
+      "name":  "smallsolar",
+      "utility_type":  "electricity",
+      "energy_type": "solar",
+      "opening_cost":  3000,
+      "incremental_cost": 11250,
+      "maintenance_cost": 0,
+      "capacity": 4,
+      "amortization": 30
+    }, {
+      "name":  "largesolar",
+      "utility_type":  "electricity",
+      "energy_type": "solar",
+      "opening_cost":  3000,
+      "incremental_cost": 16800,
+      "maintenance_cost": 0,
+      "capacity": 6,
+      "amortization": 30
+    }, {
+      "name": "smallwind",
+      "utility_type": "electricity",
+      "energy_type": "wind",
+      "opening_cost": 7000,
+      "incremental_cost": 1300,
+      "maintenance_cost": 250,
+      "capacity": 10,
+      "amortization": 30
+    },{
+      "name": "largewind",
+      "utility_type": "electricity",
+      "energy_type": "wind",
+      "opening_cost": 7000,
+      "incremental_cost": 6200,
+      "maintenance_cost": 250,
+      "capacity": 55,
+      "amortization": 30
+    },
+    {
+      "name": "battery",
+      "utility_type": "electricity",
+      "energy_type": "storage",
+      "opening_cost": 7800,
+      "incremental_cost": 6700,
+      "maintenance_cost": 0,
+      "capacity": 13.5,
+      "amortization": 30
+    }
+    ]
+}
