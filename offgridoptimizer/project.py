@@ -31,24 +31,19 @@ class Project:
 
         self.model = gp.Model('Project', env=GP_ENV)
 
-        print('Setting up Energy Sold')
         self.ss = {hour: self.model.addVar() for hour in self.hours}  # Energy sold
         self.storage_installed = self.model.addVar(vtype=gp.GRB.BINARY)
 
-        print('Setting up Grid')
         self.grid = Grid.from_location(location, allow_grid, model=self.model, project=self)
 
-        print('Setting up Products')
         self.products = Product.create_products(product_list, model=self.model, project=self)
         self.product_constraint = ProductConstraint(self)
 
         self.initial_budget = initial_budget
         self.monthly_budget = monthly_budget
 
-        print('Setting up Budget')
         self.budget_constraint = BudgetConstraint(self)
 
-        print('Setting up Demand')
         self.demand_constraint = DemandConstraint(self)
 
         self.set_objective()
@@ -215,7 +210,6 @@ class Project:
         #                                self.grid.artificial_total_grid_cost(), gp.GRB.MINIMIZE)
 
     def optimize(self):
-        print('Optimizing')
         self.model.optimize()
 
     def print_results(self):

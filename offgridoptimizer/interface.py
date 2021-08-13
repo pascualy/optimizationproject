@@ -2,16 +2,28 @@ from offgridoptimizer import Project, Product, validate_config, one_day_each_mon
 from offgridoptimizer.config_schema import get_location_options, get_config_options
 from offgridoptimizer import MONTHS_IN_YEAR, HOURS_IN_DAY, HOURS_IN_YEAR, LEAP_DAY_HOUR, DAYLIGHT_SAVINGS_SPRING, SOMETHING_ELSE
 
+import pathlib
 from jsonschema import ValidationError
 import copy
 import ipysheet
 from ipysheet import sheet, cell, hold_cells, row, column, easy
 import ipywidgets as widgets
 from datetime import date
+import pickle
 
 from ipywidgets import Layout, Button, Box, FloatText, Textarea, Dropdown, Label, IntSlider
 from ipywidgets import HTML, Layout, Dropdown, Output, Textarea, VBox, Label
 
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+colors = px.colors.qualitative.Plotly
+
+month_dict = {'January': 1, 'February': 2, 'March': 3, 'April': 4,
+                     'May': 5, 'June': 6, 'July': 7, 'August': 8, 'September': 9,
+                     'October': 10, 'November': 11, 'December': 12}
 
 def try_cast_float(x):
     try:
@@ -70,7 +82,6 @@ class ProductTable:
                                                                 self.rows[-1].row[i]]) for i, h in enumerate(self.headers)],
                                                  layout=Layout(width='100%', display='inline-flex', flex_flow='row wrap')),)
         else:
-            print(self.table.children[1])
             for vbox, cell in zip(self.table.children[1].children, [self.rows[-1].row[i] for i in range(len(self.headers))]):
                 vbox.children += (cell,)
             # self.table.children += (widgets.HBox([self.rows[-1].row[i] for i in range(len(self.headers))],
@@ -165,10 +176,17 @@ class OffGridOptimizer:
             description='Configuration:',
             disabled=False,
         )
+
         self.allow_grid_check = widgets.Checkbox(value=True,
                                                  description='Allow Grid',
                                                  disabled=False,
                                                  indent=False)
+
+        self.month_checkboxes = [widgets.Checkbox(value=False,
+                                       description=k,
+                                       disabled=False,
+                                       indent=False) for k, v in month_dict.items()]
+
         # Buttons
         self.btn_default_config = widgets.Button(description='Load Default',
                                                  disabled=False,
@@ -194,10 +212,15 @@ class OffGridOptimizer:
 
         self.input_items = [
             header("Parameters"),
-            self.location_dropdown,
             self.configuration_dropdown,
-            self.allow_grid_check,
             self.btn_default_config,
+            self.location_dropdown,
+            self.allow_grid_check,
+            widgets.HBox(self.month_checkboxes, layout=Layout(flex='flex-shrink',
+                                                              display='flex',
+                                                              border=None,
+                                                              align_items='stretch',
+                                                              width='25%')),
             widgets.HBox([widgets.VBox([header("Budget"),
                                         self.monthly_budget,
                                         self.initial_budget], layout=default_layout(border=None))]),
@@ -257,7 +280,7 @@ class OffGridOptimizer:
             "products": [{k: (v.value if k not in transforms else transforms[k](v.value))
                           for k, v in zip(headers, product.row)} for product in self.product_table.rows]
         }
-        print(a)
+
         return a
 
     def validate_sheets(self):
@@ -276,8 +299,15 @@ class OffGridOptimizer:
             config = self.validate_sheets()
         except ValidationError:
             return
-        print(config)
-        self.project = Project.project_from_config(config, hours=hours_each_month([7])[18 * 24:18 * 24 + 128])
+
+        months = [idx + 1 for idx, box in enumerate(self.month_checkboxes) if box.value == True]
+        if len(months) > 6:
+            print('Selected more than 6 months: only analyzing every other hour')
+            hours = hours_each_month(months)[::2]
+        else:
+            hours = hours_each_month(months)
+
+        self.project = Project.project_from_config(config, hours=hours)
         self.project.optimize()
         labels, costs = zip(*self.project.costs())
         labels = [text(value) for value in labels]
@@ -375,4 +405,129 @@ class OffGridOptimizer:
         fig.update_layout(title_text="Hourly Demand of Average Home in Asheville, NC")
         fig.update_xaxes(title_text="Time")
         fig.update_yaxes(title_text="<b>Energy</b> (KwH)", secondary_y=False)
+        fig.show()
+
+    def plot_solar_efficiency_month(self, months=None, location='Asheville,NC'):
+
+
+        month_dict = {'January': 1, 'February': 2, 'March': 3, 'April': 4,
+                      'May': 5, 'June': 6, 'July': 7, 'August': 8, 'September': 9,
+                      'October': 10, 'November': 11, 'December': 12}
+        self.location_dropdown.value = location
+        self.load_sheets(None, config=self.sheets_to_config(), hours=[])
+        df = self.project.parameters_df()
+
+        fig = make_subplots()
+
+        for idx, month in enumerate(months):
+            df['month'] = df['date'].dt.month
+            month_num = month_dict[month]
+            df1 = df[df['month'] == month_num]
+
+            fig.add_trace(go.Scatter(x=list(range(10*24)), y=df1['pv_efficiency'] * 100, mode='lines', line=dict(color=colors[idx]),
+                                     name=month))
+
+        fig.update_layout(title_text=f"Hourly Efficiency of Solar Products in {location.replace(',', ', ')}")
+        fig.update_xaxes(title_text="<b>Hour of Month</b>")
+        fig.update_yaxes(title_text="<b>Efficiency</b> (%)", secondary_y=False)
+        fig.show()
+
+    def plot_wind_efficiency_month(self, months=None, location='Asheville,NC'):
+        self.location_dropdown.value = location
+        self.load_sheets(None, config=self.sheets_to_config(), hours=[])
+        df = self.project.parameters_df()
+
+        fig = make_subplots()
+
+        for idx, month in enumerate(months):
+            df['month'] = df['date'].dt.month
+            month_num = month_dict[month]
+            df1 = df[df['month'] == month_num]
+            fig.add_trace(go.Scatter(x=list(range(10*24)), y=df1['wind_efficiency'] * 100, mode='lines', line=dict(color=colors[idx]),
+                                     name=month))
+        fig.update_layout(title_text=f"Hourly Efficiency of Wind Products in {location.replace(',', ', ')}")
+        fig.update_xaxes(title_text="<b>Hour of Month</b>")
+        fig.update_yaxes(title_text="<b>Efficiency</b> (%)", secondary_y=False)
+        fig.show()
+
+    def plot_demand_month(self, months=None, location='Asheville,NC'):
+        import plotly.express as px
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        colors = px.colors.qualitative.Plotly
+
+        self.location_dropdown.value = location
+        self.load_sheets(None, config=self.sheets_to_config(), hours=[])
+        df = self.project.parameters_df()
+
+        fig = make_subplots()
+
+        for idx, month in enumerate(months):
+            df['month'] = df['date'].dt.month
+            month_num = month_dict[month]
+            df1 = df[df['month'] == month_num]
+            fig.add_trace(
+                go.Scatter(x=list(range(10*24)), y=df1['demand'], mode='lines', line=dict(color=colors[idx]), name=month))
+
+        fig.update_layout(title_text=f"Hourly Demand (KwH) of Average Home in {location.replace(',', ', ')}")
+        fig.update_xaxes(title_text="Hour of Month")
+        fig.update_yaxes(title_text="<b>Energy</b> (KwH)", secondary_y=False)
+        fig.show()
+
+    def plot(self, ys, month, location, budget, season=None, sellback=None):
+        llocation = location.lower().replace(' ', '').replace(',', '_')
+        lseason = season.lower() if season else None
+        lbudget = budget.lower()
+        filename = f'{lbudget}_budget_{llocation}{f"_{lseason}" if season else ""}{"_sellback" if sellback else ""}'
+        filepath = pathlib.Path(__file__).parent / f'../experiments/{filename}.pickle'
+        df = pd.read_pickle(filepath)
+
+        df['month'] = df['date'].dt.month
+        month_num = month_dict[month]
+        df = df[df['month'] == month_num]
+
+        if 'pv_efficiency' in ys or 'wind_efficiency' in ys:
+            fig = make_subplots(specs=[[{"secondary_y": True}]])
+            fig.update_yaxes(title_text="<b>Efficiency</b> (%)", secondary_y=True)
+        else:
+            fig = make_subplots()
+
+        if 'demand' in ys:
+            fig.add_trace(go.Scatter(x=df['date'], y=df['demand'], mode='lines', line=dict(color=colors[0]), name='Demand (KwH)'),
+                secondary_y=False)
+
+        if 'pv_efficiency' in ys:
+            fig.add_trace(go.Scatter(x=df['date'], y=df['pv_efficiency'] * 100, mode='lines', line=dict(color=colors[1]),
+                                 name='Solar Efficiency (%)'), secondary_y=True)
+
+        if 'wind_efficiency' in ys:
+            fig.add_trace(go.Scatter(x=df['date'], y=df['wind_efficiency'] * 100, mode='lines', line=dict(color=colors[2]),
+                                 name='Wind Efficiency (%)'),
+                      secondary_y=True)
+
+        if 'capacity' in ys:
+            fig.add_trace(go.Scatter(x=df['date'], y=df['capacity'], mode='lines', line=dict(color=colors[3]),
+                                 name='Capacity (KwH)'),
+                      secondary_y=False)
+
+        if 'storage_level' in ys:
+            fig.add_trace(go.Scatter(x=df['date'], y=df['storage_level'], mode='lines', line=dict(color=colors[4]),
+                                 name='Storage Level (KwH)'),
+                      secondary_y=False)
+
+        if 'energy_sold' in ys:
+            fig.add_trace(go.Scatter(x=df['date'], y=df['energy_sold'], mode='lines', line=dict(color=colors[5]),
+                                 name='Energy Sold (KwH)'),
+                      secondary_y=False)
+
+        if 'grid_usage' in ys:
+            fig.add_trace(go.Scatter(x=df['date'], y=df['grid_usage'], mode='lines', line=dict(color=colors[6]),
+                                     name='Grid Usage (KwH)'),
+                                     secondary_y=False)
+
+        fig.update_layout(title_text=f"Energy System Dynamics: {budget} Budget in {location} during {month} {'with Sellback' if sellback else 'with Net-Metering'}")
+        fig.update_xaxes(title_text="Time")
+        fig.update_yaxes(title_text="<b>Energy</b> (KwH)", secondary_y=False)
+
+
         fig.show()
