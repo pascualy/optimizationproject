@@ -186,6 +186,7 @@ class OffGridOptimizer:
                                        description=k,
                                        disabled=False,
                                        indent=False) for k, v in month_dict.items()]
+        self.month_checkboxes[0].value = True
 
         # Buttons
         self.btn_default_config = widgets.Button(description='Load Default',
@@ -332,7 +333,7 @@ class OffGridOptimizer:
         colors = px.colors.qualitative.Plotly
 
         fig = make_subplots(specs=[[{"secondary_y": True}]])
-        fig.add_trace(go.Scatter(x=df['date'], y=df['demand'], mode='lines', line=dict(color=colors[0]), name='Demand (KwH)'),
+        fig.add_trace(go.Scatter(x=df['date'], y=df['demand'], mode='lines', line=dict(color=colors[0]), name='Demand (kWh)'),
             secondary_y=False)
         fig.add_trace(go.Scatter(x=df['date'], y=df['pv_efficiency'] * 100, mode='lines', line=dict(color=colors[1]),
                                  name='Solar Efficiency (%)'),
@@ -341,16 +342,16 @@ class OffGridOptimizer:
                                  name='Wind Efficiency (%)'),
                       secondary_y=True)
         fig.add_trace(go.Scatter(x=df['date'], y=df['capacity'], mode='lines', line=dict(color=colors[3]),
-                                 name='Capacity (KwH)'),
+                                 name='Capacity (kWh)'),
                       secondary_y=False)
         fig.add_trace(go.Scatter(x=df['date'], y=df['storage_level'], mode='lines', line=dict(color=colors[4]),
-                                 name='Storage Level (KwH)'),
+                                 name='Storage Level (kWh)'),
                       secondary_y=False)
         fig.add_trace(go.Scatter(x=df['date'], y=df['energy_sold'], mode='lines', line=dict(color=colors[5]),
-                                 name='Energy Sold (KwH)'),
+                                 name='Energy Sold (kWh)'),
                       secondary_y=False)
         fig.add_trace(go.Scatter(x=df['date'], y=df['grid_usage'], mode='lines', line=dict(color=colors[6]),
-                                 name='Grid Usage (KwH)'),
+                                 name='Grid Usage (kWh)'),
                       secondary_y=False)
 
         if hours:
@@ -372,7 +373,7 @@ class OffGridOptimizer:
 
         fig.update_layout(title_text="Energy System Dynamics")
         fig.update_xaxes(title_text="Time")
-        fig.update_yaxes(title_text="<b>Energy</b> (KwH)", secondary_y=False)
+        fig.update_yaxes(title_text="<b>Energy</b> (kWh)", secondary_y=False)
         fig.update_yaxes(title_text="<b>Efficiency</b> (%)", secondary_y=True)
 
         fig.show()
@@ -401,10 +402,10 @@ class OffGridOptimizer:
         colors = px.colors.qualitative.Plotly
         fig = make_subplots()
         fig.add_trace(
-            go.Scatter(x=df['date'], y=df['demand'], mode='lines', line=dict(color=colors[0]), name='Demand (KwH)'))
+            go.Scatter(x=df['date'], y=df['demand'], mode='lines', line=dict(color=colors[0]), name='Demand (kWh)'))
         fig.update_layout(title_text="Hourly Demand of Average Home in Asheville, NC")
         fig.update_xaxes(title_text="Time")
-        fig.update_yaxes(title_text="<b>Energy</b> (KwH)", secondary_y=False)
+        fig.update_yaxes(title_text="<b>Energy</b> (kWh)", secondary_y=False)
         fig.show()
 
     def plot_solar_efficiency_month(self, months=None, location='Asheville,NC'):
@@ -469,12 +470,12 @@ class OffGridOptimizer:
             fig.add_trace(
                 go.Scatter(x=list(range(10*24)), y=df1['demand'], mode='lines', line=dict(color=colors[idx]), name=month))
 
-        fig.update_layout(title_text=f"Hourly Demand (KwH) of Average Home in {location.replace(',', ', ')}")
+        fig.update_layout(title_text=f"Hourly Demand (kWh) of Average Home in {location.replace(',', ', ')}")
         fig.update_xaxes(title_text="Hour of Month")
-        fig.update_yaxes(title_text="<b>Energy</b> (KwH)", secondary_y=False)
+        fig.update_yaxes(title_text="<b>Energy</b> (kWh)", secondary_y=False)
         fig.show()
 
-    def plot(self, ys, month, location, budget, season=None, sellback=None):
+    def plot(self, ys, month, days, location, budget, season=None, sellback=None):
         llocation = location.lower().replace(' ', '').replace(',', '_')
         lseason = season.lower() if season else None
         lbudget = budget.lower()
@@ -483,8 +484,9 @@ class OffGridOptimizer:
         df = pd.read_pickle(filepath)
 
         df['month'] = df['date'].dt.month
+        df['day'] = df['date'].dt.day
         month_num = month_dict[month]
-        df = df[df['month'] == month_num]
+        df = df[(df['month'] == month_num) & (df['day'].isin(days))]
 
         if 'pv_efficiency' in ys or 'wind_efficiency' in ys:
             fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -493,7 +495,7 @@ class OffGridOptimizer:
             fig = make_subplots()
 
         if 'demand' in ys:
-            fig.add_trace(go.Scatter(x=df['date'], y=df['demand'], mode='lines', line=dict(color=colors[0]), name='Demand (KwH)'),
+            fig.add_trace(go.Scatter(x=df['date'], y=df['demand'], mode='lines', line=dict(color=colors[0]), name='Demand (kWh)'),
                 secondary_y=False)
 
         if 'pv_efficiency' in ys:
@@ -507,27 +509,27 @@ class OffGridOptimizer:
 
         if 'capacity' in ys:
             fig.add_trace(go.Scatter(x=df['date'], y=df['capacity'], mode='lines', line=dict(color=colors[3]),
-                                 name='Capacity (KwH)'),
+                                 name='Capacity (kWh)'),
                       secondary_y=False)
 
         if 'storage_level' in ys:
             fig.add_trace(go.Scatter(x=df['date'], y=df['storage_level'], mode='lines', line=dict(color=colors[4]),
-                                 name='Storage Level (KwH)'),
+                                 name='Storage Level (kWh)'),
                       secondary_y=False)
 
         if 'energy_sold' in ys:
             fig.add_trace(go.Scatter(x=df['date'], y=df['energy_sold'], mode='lines', line=dict(color=colors[5]),
-                                 name='Energy Sold (KwH)'),
+                                 name='Energy Sold (kWh)'),
                       secondary_y=False)
 
         if 'grid_usage' in ys:
             fig.add_trace(go.Scatter(x=df['date'], y=df['grid_usage'], mode='lines', line=dict(color=colors[6]),
-                                     name='Grid Usage (KwH)'),
+                                     name='Grid Usage (kWh)'),
                                      secondary_y=False)
 
         fig.update_layout(title_text=f"Energy System Dynamics: {budget} Budget in {location} during {month} {'with Sellback' if sellback else 'with Net-Metering'}")
         fig.update_xaxes(title_text="Time")
-        fig.update_yaxes(title_text="<b>Energy</b> (KwH)", secondary_y=False)
+        fig.update_yaxes(title_text="<b>Energy</b> (kWh)", secondary_y=False)
 
 
         fig.show()

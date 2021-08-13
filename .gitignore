@@ -10,3 +10,4 @@ offgridoptimizer/__pycache__/
 .cache/
 .pki/
 gurobi.lic
+.idea/
